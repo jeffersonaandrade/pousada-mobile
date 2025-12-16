@@ -18,6 +18,7 @@ import CarrinhoScreen from './src/screens/CarrinhoScreen';
 import KioskWelcomeScreen from './src/screens/KioskWelcomeScreen';
 import ProdutoDetalhesScreen from './src/screens/ProdutoDetalhesScreen';
 import PedidosScreen from './src/screens/PedidosScreen';
+import GovernanceScreen from './src/screens/GovernanceScreen';
 import { Produto } from './src/types';
 
 export type RootStackParamList = {
@@ -31,6 +32,7 @@ export type RootStackParamList = {
   KioskWelcome: undefined;
   ProdutoDetalhes: { produto: Produto };
   Pedidos: undefined;
+  Governance: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -97,7 +99,7 @@ export default function App() {
           <Stack.Screen
             name="Login"
             component={LoginScreen}
-            options={{ title: 'Login - Garçom' }}
+            options={{ title: 'Acesso da Equipe' }}
           />
           <Stack.Screen
             name="Menu"
@@ -162,6 +164,15 @@ export default function App() {
             component={PedidosScreen}
             options={{ 
               title: 'Meus Pedidos (24h)',
+              headerLeft: () => null,
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="Governance"
+            component={GovernanceScreen}
+            options={{ 
+              title: 'Governança / Limpeza',
               headerLeft: () => null,
               gestureEnabled: false,
             }}

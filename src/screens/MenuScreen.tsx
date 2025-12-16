@@ -1,14 +1,16 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { useAppStore } from '../store/appStore';
+import { Role } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import SecureExitButton from '../components/SecureExitButton';
 
@@ -18,6 +20,29 @@ type MenuScreenProps = {
 
 export default function MenuScreen({ navigation }: MenuScreenProps) {
   const { usuario, modo } = useAppStore();
+
+  // Proteção de rota: CLEANER não pode acessar Menu
+  useEffect(() => {
+    if (usuario && usuario.cargo === Role.CLEANER) {
+      Alert.alert(
+        'Acesso Negado',
+        'Seu perfil não tem acesso a esta tela. Você será redirecionado para a tela de Governança.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.replace('Governance');
+            },
+          },
+        ]
+      );
+    }
+  }, [usuario, navigation]);
+
+  // Se for CLEANER, não renderizar o conteúdo
+  if (usuario && usuario.cargo === Role.CLEANER) {
+    return null;
+  }
 
   return (
     <SafeAreaView style={styles.container}>

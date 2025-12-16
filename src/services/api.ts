@@ -119,7 +119,8 @@ export const criarHospede = async (data: {
   nome: string;
   email?: string;
   documento?: string;
-  quarto?: string;
+  quarto?: string; // Número do quarto (string) - compatibilidade
+  quartoId?: number; // ID do quarto (número) - obrigatório para HOSPEDE
   uidPulseira: string;
   limiteGasto?: number;
   valorEntrada?: number; // Valor da diária/entrada pago no check-in

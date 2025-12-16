@@ -49,9 +49,30 @@ export default function PedidosScreen({ navigation }: PedidosScreenProps) {
   const [pedidoParaCancelar, setPedidoParaCancelar] = useState<Pedido | null>(null);
   const [cancelando, setCancelando] = useState(false);
 
+  // Proteção de rota: CLEANER não pode acessar Pedidos
   useEffect(() => {
-    carregarPedidos();
-  }, []);
+    if (usuario && usuario.cargo === Role.CLEANER) {
+      Alert.alert(
+        'Acesso Negado',
+        'Seu perfil não tem acesso a esta tela. Você será redirecionado para a tela de Governança.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.replace('Governance');
+            },
+          },
+        ]
+      );
+    }
+  }, [usuario, navigation]);
+
+  useEffect(() => {
+    // Só carregar pedidos se não for CLEANER
+    if (usuario && usuario.cargo !== Role.CLEANER) {
+      carregarPedidos();
+    }
+  }, [usuario]);
 
   const carregarPedidos = async () => {
     try {
@@ -220,6 +241,11 @@ export default function PedidosScreen({ navigation }: PedidosScreenProps) {
       </View>
     );
   };
+
+  // Se for CLEANER, não renderizar o conteúdo
+  if (usuario && usuario.cargo === Role.CLEANER) {
+    return null;
+  }
 
   if (loading) {
     return (

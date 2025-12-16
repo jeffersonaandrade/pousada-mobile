@@ -219,11 +219,11 @@ export default function ConfigScreen({ navigation }: ConfigScreenProps) {
             activeOpacity={0.8}
           >
             <View style={styles.optionIcon}>
-              <Text style={styles.optionIconText}>👨‍🍳</Text>
+              <Text style={styles.optionIconText}>👥</Text>
             </View>
-            <Text style={styles.optionTitle}>Garçom</Text>
+            <Text style={styles.optionTitle}>Equipe</Text>
             <Text style={styles.optionDescription}>
-              Realizar pedidos
+              Acesso Staff
             </Text>
           </TouchableOpacity>
 

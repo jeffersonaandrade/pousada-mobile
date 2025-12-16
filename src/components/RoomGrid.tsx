@@ -15,18 +15,22 @@ import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import { getErrorMessage } from '../utils/errorHandler';
 import Button from './Button';
 
+type RoomGridMode = 'SELECTION' | 'CLEANING';
+
 type RoomGridProps = {
-  visible: boolean;
-  onClose: () => void;
-  onSelectRoom: (quarto: Quarto) => void;
-  allowSelection?: boolean; // Se true, permite selecionar quartos LIVRE
+  visible?: boolean; // Opcional para quando usado como componente principal (não modal)
+  onClose?: () => void; // Opcional para quando usado como componente principal
+  onSelectRoom?: (quarto: Quarto) => void; // Opcional para modo CLEANING
+  allowSelection?: boolean; // Se true, permite selecionar quartos LIVRE (modo SELECTION)
+  mode?: RoomGridMode; // Modo de operação: 'SELECTION' (padrão) ou 'CLEANING'
 };
 
 export default function RoomGrid({
-  visible,
+  visible = true, // Padrão true para quando usado como componente principal
   onClose,
   onSelectRoom,
   allowSelection = false,
+  mode = 'SELECTION',
 }: RoomGridProps) {
   const [quartos, setQuartos] = useState<Quarto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,10 +56,115 @@ export default function RoomGrid({
   };
 
   const handleQuartoPress = async (quarto: Quarto) => {
+    // Modo CLEANING (Governança)
+    if (mode === 'CLEANING') {
+      // Quarto AMARELO (LIMPEZA) -> Confirmar limpeza e liberar
+      if (quarto.status === StatusQuarto.LIMPEZA) {
+        Alert.alert(
+          'Confirmar Limpeza',
+          `Confirmar limpeza e liberar quarto ${quarto.numero}?`,
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Confirmar',
+              onPress: async () => {
+                setAtualizando(quarto.id);
+                try {
+                  await atualizarStatusQuarto(quarto.id, StatusQuarto.LIVRE);
+                  await carregarQuartos(); // Recarregar lista
+                  Alert.alert('Sucesso', `Quarto ${quarto.numero} liberado para uso`);
+                } catch (error: unknown) {
+                  Alert.alert('Erro', getErrorMessage(error));
+                } finally {
+                  setAtualizando(null);
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Quarto VERDE (LIVRE) -> Bloquear para manutenção
+      if (quarto.status === StatusQuarto.LIVRE) {
+        Alert.alert(
+          'Bloquear Quarto',
+          `O quarto ${quarto.numero} tem algum problema?\n\nDeseja bloquear para manutenção?`,
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Bloquear',
+              onPress: async () => {
+                setAtualizando(quarto.id);
+                try {
+                  await atualizarStatusQuarto(quarto.id, StatusQuarto.MANUTENCAO);
+                  await carregarQuartos(); // Recarregar lista
+                  Alert.alert('Sucesso', `Quarto ${quarto.numero} bloqueado para manutenção`);
+                } catch (error: unknown) {
+                  Alert.alert('Erro', getErrorMessage(error));
+                } finally {
+                  setAtualizando(null);
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Quarto CINZA (MANUTENCAO) -> Desbloquear após manutenção
+      if (quarto.status === StatusQuarto.MANUTENCAO) {
+        Alert.alert(
+          'Desbloquear Quarto',
+          `Manutenção concluída?\n\nDeseja liberar o quarto ${quarto.numero}?`,
+          [
+            {
+              text: 'Cancelar',
+              style: 'cancel',
+            },
+            {
+              text: 'Liberar',
+              onPress: async () => {
+                setAtualizando(quarto.id);
+                try {
+                  await atualizarStatusQuarto(quarto.id, StatusQuarto.LIVRE);
+                  await carregarQuartos(); // Recarregar lista
+                  Alert.alert('Sucesso', `Quarto ${quarto.numero} liberado para uso`);
+                } catch (error: unknown) {
+                  Alert.alert('Erro', getErrorMessage(error));
+                } finally {
+                  setAtualizando(null);
+                }
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Quarto VERMELHO (OCUPADO) -> Apenas aviso
+      if (quarto.status === StatusQuarto.OCUPADO) {
+        const nomeHospede = quarto.hospedeAtual?.nome || 'Desconhecido';
+        Alert.alert(
+          'Quarto Ocupado',
+          `Quarto ${quarto.numero} está ocupado.\nHóspede: ${nomeHospede}`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
+    // Modo SELECTION (Check-in) - comportamento original
     // Se for LIVRE e permitir seleção, seleciona
     if (quarto.status === StatusQuarto.LIVRE && allowSelection) {
-      onSelectRoom(quarto);
-      onClose();
+      onSelectRoom?.(quarto);
+      onClose?.();
       return;
     }
 
@@ -108,6 +217,8 @@ export default function RoomGrid({
         return styles.quartoOcupado;
       case StatusQuarto.LIMPEZA:
         return styles.quartoLimpeza;
+      case StatusQuarto.MANUTENCAO:
+        return styles.quartoManutencao;
       default:
         return styles.quartoLivre;
     }
@@ -121,6 +232,8 @@ export default function RoomGrid({
         return styles.quartoTextOcupado;
       case StatusQuarto.LIMPEZA:
         return styles.quartoTextLimpeza;
+      case StatusQuarto.MANUTENCAO:
+        return styles.quartoTextManutencao;
       default:
         return styles.quartoTextLivre;
     }
@@ -128,9 +241,11 @@ export default function RoomGrid({
 
   const renderQuarto = ({ item }: { item: Quarto }) => {
     const isUpdating = atualizando === item.id;
-    const isClickable =
-      item.status === StatusQuarto.LIVRE ||
-      item.status === StatusQuarto.LIMPEZA;
+    // No modo CLEANING, todos os quartos são clicáveis (exceto quando atualizando)
+    // No modo SELECTION, apenas LIVRE e LIMPEZA são clicáveis (MANUTENCAO não é selecionável)
+    const isClickable = mode === 'CLEANING' 
+      ? true // Todos clicáveis no modo CLEANING (incluindo MANUTENCAO)
+      : (item.status === StatusQuarto.LIVRE || item.status === StatusQuarto.LIMPEZA);
 
     return (
       <TouchableOpacity
@@ -163,6 +278,11 @@ export default function RoomGrid({
                 🧹 Limpeza
               </Text>
             )}
+            {item.status === StatusQuarto.MANUTENCAO && (
+              <Text style={[styles.quartoStatus, getQuartoTextStyle(item.status)]}>
+                🔧 Manutenção
+              </Text>
+            )}
             {item.status === StatusQuarto.OCUPADO && (
               <Text style={styles.quartoIcon}>🔒</Text>
             )}
@@ -175,6 +295,69 @@ export default function RoomGrid({
     );
   };
 
+  // Conteúdo do grid (legenda + lista)
+  const gridContent = (
+    <>
+      {/* Legenda */}
+      <View style={styles.legenda}>
+        <View style={styles.legendaItem}>
+          <View style={[styles.legendaColor, styles.legendaLivre]} />
+          <Text style={styles.legendaText}>Livre</Text>
+        </View>
+        <View style={styles.legendaItem}>
+          <View style={[styles.legendaColor, styles.legendaOcupado]} />
+          <Text style={styles.legendaText}>Ocupado</Text>
+        </View>
+        <View style={styles.legendaItem}>
+          <View style={[styles.legendaColor, styles.legendaLimpeza]} />
+          <Text style={styles.legendaText}>Limpeza</Text>
+        </View>
+        <View style={styles.legendaItem}>
+          <View style={[styles.legendaColor, styles.legendaManutencao]} />
+          <Text style={styles.legendaText}>Manutenção</Text>
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Carregando quartos...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={quartos}
+          renderItem={renderQuarto}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={4}
+          contentContainerStyle={styles.grid}
+          refreshing={loading}
+          onRefresh={carregarQuartos}
+        />
+      )}
+
+      <View style={styles.footer}>
+        <Button
+          title="Atualizar"
+          onPress={carregarQuartos}
+          variant="outline"
+          size="medium"
+          loading={loading}
+          fullWidth
+        />
+      </View>
+    </>
+  );
+
+  // Se usado como componente principal (sem onClose = não é modal)
+  if (!onClose) {
+    return (
+      <View style={styles.container}>
+        {gridContent}
+      </View>
+    );
+  }
+
+  // Se usado como modal (comportamento padrão)
   return (
     <Modal
       visible={visible}
@@ -192,50 +375,7 @@ export default function RoomGrid({
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Legenda */}
-          <View style={styles.legenda}>
-            <View style={styles.legendaItem}>
-              <View style={[styles.legendaColor, styles.legendaLivre]} />
-              <Text style={styles.legendaText}>Livre</Text>
-            </View>
-            <View style={styles.legendaItem}>
-              <View style={[styles.legendaColor, styles.legendaOcupado]} />
-              <Text style={styles.legendaText}>Ocupado</Text>
-            </View>
-            <View style={styles.legendaItem}>
-              <View style={[styles.legendaColor, styles.legendaLimpeza]} />
-              <Text style={styles.legendaText}>Limpeza</Text>
-            </View>
-          </View>
-
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Carregando quartos...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={quartos}
-              renderItem={renderQuarto}
-              keyExtractor={(item) => item.id.toString()}
-              numColumns={4}
-              contentContainerStyle={styles.grid}
-              refreshing={loading}
-              onRefresh={carregarQuartos}
-            />
-          )}
-
-          <View style={styles.footer}>
-            <Button
-              title="Atualizar"
-              onPress={carregarQuartos}
-              variant="outline"
-              size="medium"
-              loading={loading}
-              fullWidth
-            />
-          </View>
+          {gridContent}
         </View>
       </View>
     </Modal>
@@ -315,6 +455,9 @@ const styles = StyleSheet.create({
   legendaLimpeza: {
     backgroundColor: colors.warning,
   },
+  legendaManutencao: {
+    backgroundColor: '#808080', // Cinza para manutenção
+  },
   legendaText: {
     ...typography.bodySmall,
     color: colors.textSecondary,
@@ -347,6 +490,9 @@ const styles = StyleSheet.create({
   quartoLimpeza: {
     backgroundColor: colors.warning,
   },
+  quartoManutencao: {
+    backgroundColor: '#808080', // Cinza para manutenção
+  },
   quartoDisabled: {
     opacity: 0.8,
   },
@@ -362,6 +508,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   quartoTextLimpeza: {
+    color: '#FFFFFF',
+  },
+  quartoTextManutencao: {
     color: '#FFFFFF',
   },
   quartoHospede: {

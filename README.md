@@ -455,6 +455,11 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
      - Exibe mensagem: "Limite de gasto excedido! Disponível: R$ X,XX"
    - Não aplica para `HOSPEDE` ou `VIP`
 
+5. **Rastreamento de Pedidos**
+   - Cada pedido criado é associado ao `usuarioId` do garçom logado
+   - Campo `usuarioId` é enviado no payload ao criar pedidos
+   - Permite rastrear qual funcionário criou cada pedido
+
 #### Regras de Autorização
 
 1. **Pedidos via Pulseira (NFC)**
@@ -485,8 +490,15 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
    - No mapa visual, apenas quartos com status `LIVRE` são selecionáveis
    - Quartos `OCUPADO` mostram nome do hóspede atual e ícone de bloqueio
    - Quartos `LIMPEZA` podem ser liberados diretamente pelo tablet
+   - Quartos `MANUTENCAO` não são selecionáveis (bloqueados para manutenção)
 
-2. **Liberação de Quartos em Limpeza**
+2. **Envio de quartoId**
+   - Para clientes do tipo `HOSPEDE`, o payload **DEVE** conter:
+     - `quartoId`: ID numérico do quarto (obrigatório)
+     - `quarto`: Número do quarto em string (compatibilidade)
+   - Validação obrigatória: se `tipo === 'HOSPEDE'` e não houver `quartoSelecionado?.id`, exibe erro
+
+3. **Liberação de Quartos em Limpeza**
    - Camareira pode liberar quartos em limpeza diretamente pelo tablet
    - Ao clicar em quarto `LIMPEZA`, sistema pergunta: "Liberar quarto X para uso?"
    - Ao confirmar, atualiza status para `LIVRE` via API
@@ -496,6 +508,26 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
 1. **Marcação Automática para Limpeza**
    - Ao realizar checkout, se o hóspede tinha quarto, o sistema marca automaticamente para `LIMPEZA`
    - Mensagem de sucesso informa: "Quarto X marcado para LIMPEZA"
+
+#### Governança e Manutenção (Modo CLEANER)
+
+1. **Bloqueio para Manutenção (LIVRE → MANUTENCAO)**
+   - Camareira pode bloquear quartos livres que apresentam problemas
+   - Ao clicar em quarto `LIVRE`, pergunta: "O quarto tem algum problema? Deseja bloquear para manutenção?"
+   - Ao confirmar, chama `PATCH /api/quartos/:id/status` com `{ status: 'MANUTENCAO' }`
+   - Quarto fica com cor cinza e não pode ser selecionado no check-in
+
+2. **Desbloqueio após Manutenção (MANUTENCAO → LIVRE)**
+   - Após concluir a manutenção, camareira pode desbloquear o quarto
+   - Ao clicar em quarto `MANUTENCAO`, pergunta: "Manutenção concluída? Deseja liberar o quarto?"
+   - Ao confirmar, chama `PATCH /api/quartos/:id/status` com `{ status: 'LIVRE' }`
+   - Quarto volta para cor verde e fica disponível para check-in
+
+3. **Liberação de Limpeza (LIMPEZA → LIVRE)**
+   - Camareira pode liberar quartos em limpeza diretamente pelo tablet
+   - Ao clicar em quarto `LIMPEZA`, pergunta: "Confirmar limpeza e liberar quarto?"
+   - Ao confirmar, atualiza status para `LIVRE` via API
+   - Atualização é refletida em tempo real na recepção
 
 ### 📱 Filtros e Visualização
 
@@ -520,21 +552,32 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
 
 ### 🔐 Segurança e Autenticação
 
-#### Autenticação de Garçom
+#### Autenticação da Equipe
 
 1. **PIN de 4 Dígitos**
    - Formato: exatamente 4 dígitos numéricos
    - Validação via regex: `/^\d{4}$/`
    - PIN deve existir no banco e usuário deve estar ativo
 
-2. **Modo Garçom**
+2. **Redirecionamento por Cargo**
+   - Sistema verifica `usuario.cargo` após autenticação
+   - Redireciona automaticamente para tela apropriada
+   - Perfis não suportados são bloqueados
+
+3. **Modo Garçom/Gerente**
    - Requer autenticação para acessar funcionalidades
    - PIN é enviado no header `X-User-Pin` nas requisições de pedidos
+   - Rastreamento de pedidos: cada pedido é associado ao `usuarioId` do criador
+
+4. **Modo Camareira (CLEANER)**
+   - Acesso exclusivo à tela de Governança
+   - Não tem acesso a funcionalidades de vendas (pedidos, cardápio, carrinho)
+   - Proteção de rotas impede acesso manual a telas restritas
 
 #### Saída Segura
 
 1. **Botão de Encerrar Turno**
-   - Disponível no modo Garçom e Recepção
+   - Disponível no modo Garçom, Gerente e Recepção
    - Requer PIN de gerente para autorizar saída
    - Previne saída acidental durante operação
 
@@ -557,13 +600,38 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
    - Regex: `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`
    - Aplicado apenas se e-mail for fornecido (campo opcional)
 
+#### Validação de Quarto no Check-in
+
+1. **quartoId Obrigatório para HOSPEDE**
+   - Se `tipo === 'HOSPEDE'`, o payload **DEVE** conter `quartoId` (número inteiro)
+   - Validação pré-envio: verifica se `quartoSelecionado?.id` existe
+   - Erro se não houver quarto selecionado: "Selecione um quarto válido para Hóspede"
+
+2. **Envio de Dados do Quarto**
+   - `quartoId`: ID numérico do quarto (obrigatório para HOSPEDE)
+   - `quarto`: Número do quarto em string (compatibilidade)
+   - Apenas enviados quando `tipo === 'HOSPEDE'`
+
+#### Validação de Quarto no Check-in
+
+1. **quartoId Obrigatório para HOSPEDE**
+   - Se `tipo === 'HOSPEDE'`, o payload **DEVE** conter `quartoId` (número inteiro)
+   - Validação pré-envio: verifica se `quartoSelecionado?.id` existe
+   - Erro se não houver quarto selecionado: "Selecione um quarto válido para Hóspede"
+
+2. **Envio de Dados do Quarto**
+   - `quartoId`: ID numérico do quarto (obrigatório para HOSPEDE)
+   - `quarto`: Número do quarto em string (compatibilidade)
+   - Apenas enviados quando `tipo === 'HOSPEDE'`
+
 ### 🔄 Estados e Transições
 
 #### Status de Quartos
 
-1. **LIVRE**: Disponível para check-in, selecionável no mapa
-2. **OCUPADO**: Com hóspede atual, mostra nome e bloqueado para seleção
-3. **LIMPEZA**: Aguardando limpeza, pode ser liberado pelo tablet
+1. **LIVRE**: Disponível para check-in, selecionável no mapa (cor verde)
+2. **OCUPADO**: Com hóspede atual, mostra nome e bloqueado para seleção (cor vermelha)
+3. **LIMPEZA**: Aguardando limpeza, pode ser liberado pelo tablet (cor amarela)
+4. **MANUTENCAO**: Bloqueado para manutenção, não selecionável no check-in (cor cinza)
 
 #### Status de Pedidos
 

@@ -202,27 +202,51 @@ export default function RecepcaoScreen() {
       }
     }
 
+    // Validação obrigatória: Se for HÓSPEDE, deve ter quartoId
+    if (tipo === TipoCliente.HOSPEDE && !quartoSelecionado?.id) {
+      Alert.alert('Erro', 'Selecione um quarto válido para Hóspede');
+      return;
+    }
+
     setLoadingCheckin(true);
     try {
       // Garantir que pagoNaEntrada seja sempre boolean (nunca undefined)
       const pagoNaEntradaBoolean: boolean = pagoNaEntrada === true;
 
-      const data = {
+      const data: {
+        tipo: TipoCliente;
+        nome: string;
+        email?: string;
+        documento?: string;
+        quarto?: string;
+        quartoId?: number;
+        uidPulseira: string;
+        valorEntrada?: number;
+        pagoNaEntrada: boolean;
+        metodoPagamento?: string;
+      } = {
         tipo,
         nome: nome.trim(),
         email: email.trim() || undefined,
         documento: documento.trim() || undefined,
-        quarto: quartoSelecionado?.numero || undefined,
         uidPulseira: uidPulseira.trim(),
         valorEntrada: valorEntradaNumerico > 0 ? valorEntradaNumerico : undefined,
         pagoNaEntrada: pagoNaEntradaBoolean, // Sempre boolean: true ou false
         metodoPagamento: metodoPagamento ? metodoPagamento : undefined,
       };
 
+      // Se for HÓSPEDE, adicionar quartoId (obrigatório) e quarto (compatibilidade)
+      if (tipo === TipoCliente.HOSPEDE && quartoSelecionado) {
+        data.quartoId = quartoSelecionado.id; // ID numérico (crucial)
+        data.quarto = quartoSelecionado.numero; // Número string (compatibilidade)
+      }
+
       // Log do payload antes de enviar
       console.log('PAYLOAD:', JSON.stringify(data, null, 2));
       console.log('Tipo de valorEntrada:', typeof data.valorEntrada, 'Valor:', data.valorEntrada);
       console.log('Tipo de pagoNaEntrada:', typeof data.pagoNaEntrada, 'Valor:', data.pagoNaEntrada);
+      console.log('QuartoId:', data.quartoId, 'Tipo:', typeof data.quartoId);
+      console.log('Quarto (número):', data.quarto, 'Tipo:', typeof data.quarto);
 
       await criarHospede(data);
       

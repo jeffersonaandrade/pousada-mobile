@@ -16,6 +16,7 @@ export enum Role {
   WAITER = 'WAITER',
   MANAGER = 'MANAGER',
   ADMIN = 'ADMIN',
+  CLEANER = 'CLEANER',
 }
 
 export enum ModoApp {
@@ -35,6 +36,7 @@ export enum StatusQuarto {
   LIVRE = 'LIVRE',
   OCUPADO = 'OCUPADO',
   LIMPEZA = 'LIMPEZA',
+  MANUTENCAO = 'MANUTENCAO',
 }
 
 export interface Quarto {

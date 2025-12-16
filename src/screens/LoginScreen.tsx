@@ -13,6 +13,7 @@ import { RootStackParamList } from '../../App';
 import { useAppStore } from '../store/appStore';
 import { autenticarUsuario } from '../services/api';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
+import { Role } from '../types';
 import Button from '../components/Button';
 import { getErrorMessage } from '../utils/errorHandler';
 
@@ -54,7 +55,47 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
       const usuario = await autenticarUsuario(pin);
       setUsuario(usuario);
       Alert.alert('Sucesso', `Bem-vindo, ${usuario.nome}!`);
-      navigation.navigate('Menu');
+      
+      // Redirecionar baseado no cargo (switch case)
+      switch (usuario.cargo) {
+        case Role.WAITER:
+          // Garçom: vai para Menu/Pedidos
+          navigation.navigate('Menu');
+          break;
+        
+        case Role.MANAGER:
+          // Gerente: vai para Menu/Pedidos (com poderes extras)
+          navigation.navigate('Menu');
+          break;
+        
+        case Role.CLEANER:
+          // Camareira: vai para Governança
+          navigation.navigate('Governance');
+          break;
+        
+        case Role.ADMIN:
+          // Admin: vai para Menu (acesso completo)
+          navigation.navigate('Menu');
+          break;
+        
+        default:
+          // Perfil não suportado
+          Alert.alert(
+            'Perfil Não Suportado',
+            'Seu perfil não tem acesso ao aplicativo mobile. Entre em contato com o administrador.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  limparPin();
+                  navigation.goBack();
+                },
+              },
+            ]
+          );
+          setUsuario(null);
+          break;
+      }
     } catch (error: unknown) {
       Alert.alert('Erro', getErrorMessage(error));
       limparPin();
@@ -69,9 +110,9 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>👨‍🍳</Text>
+            <Text style={styles.logoText}>👥</Text>
           </View>
-          <Text style={styles.title}>Login do Garçom</Text>
+          <Text style={styles.title}>Acesso da Equipe</Text>
           <Text style={styles.subtitle}>Digite seu PIN de 4 dígitos</Text>
         </View>
 
