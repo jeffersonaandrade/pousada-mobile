@@ -624,6 +624,80 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
    - `quarto`: Número do quarto em string (compatibilidade)
    - Apenas enviados quando `tipo === 'HOSPEDE'`
 
+### 👥 Acesso da Equipe (Unificado)
+
+#### Ponto de Entrada Único
+
+1. **Botão "Equipe" na Tela Inicial**
+   - Substitui o botão "Garçom" por "Equipe" (ou "Acesso Staff")
+   - Ícone genérico (👥) para representar todos os funcionários
+   - Mantém "Recepção" e "Kiosk" como modos de terminal fixo
+
+#### Redirecionamento Automático por Cargo
+
+1. **WAITER (Garçom)**
+   - Após login, redireciona para `Menu` (tela de pedidos)
+   - Pode fazer pedidos e ver seus próprios pedidos das últimas 24h
+
+2. **MANAGER (Gerente)**
+   - Após login, redireciona para `Menu` (tela de pedidos)
+   - Tem poderes extras (pode autorizar pedidos manuais, cancelar pedidos)
+   - Vê seus próprios pedidos das últimas 24h
+
+3. **CLEANER (Camareira)**
+   - Após login, redireciona para `Governance` (tela de governança)
+   - Acesso exclusivo ao mapa de quartos para gerenciar limpeza e manutenção
+   - **Não tem acesso** a telas de pedidos (Menu, Pedidos, Cardápio, Carrinho)
+
+4. **ADMIN (Administrador)**
+   - Após login, redireciona para `Menu` (acesso completo)
+   - Pode ver todos os pedidos (sem filtro de 24h)
+
+5. **Outros Perfis**
+   - Exibe alerta: "Perfil não suportado no mobile"
+   - Bloqueia acesso ao aplicativo
+
+#### Proteção de Rotas
+
+1. **CLEANER Bloqueado**
+   - Se CLEANER tentar acessar `Menu` ou `Pedidos` manualmente, é redirecionado para `Governance`
+   - Exibe alerta informativo antes de redirecionar
+
+### 🧹 Tela de Governança (CLEANER)
+
+#### Funcionalidades
+
+1. **Visualização do Mapa de Quartos**
+   - Mapa visual com todos os quartos em formato de grid
+   - Cores indicam status: Verde (Livre), Vermelho (Ocupado), Amarelo (Limpeza), Cinza (Manutenção)
+
+2. **Gerenciamento de Limpeza**
+   - Clicar em quarto `LIMPEZA` (amarelo) → confirma limpeza → libera para `LIVRE`
+   - Atualização refletida em tempo real na recepção
+
+3. **Gerenciamento de Manutenção**
+   - Clicar em quarto `LIVRE` (verde) → pergunta se tem problema → bloqueia para `MANUTENCAO`
+   - Clicar em quarto `MANUTENCAO` (cinza) → pergunta se manutenção concluída → libera para `LIVRE`
+   - Quartos em manutenção não podem ser selecionados no check-in
+
+4. **Informações de Quartos Ocupados**
+   - Clicar em quarto `OCUPADO` (vermelho) → mostra nome do hóspede atual
+   - Apenas visualização, sem ações disponíveis
+
+### 📋 Listagem de Pedidos
+
+#### Filtro por Funcionário
+
+1. **Pedidos das Últimas 24h**
+   - Garçons (WAITER) veem apenas seus próprios pedidos das últimas 24h
+   - Gerentes (MANAGER) veem apenas seus próprios pedidos das últimas 24h
+   - Administradores (ADMIN) veem todos os pedidos (sem filtro)
+
+2. **Filtros Aplicados**
+   - `usuarioId`: ID do funcionário logado (para WAITER e MANAGER)
+   - `recente: true`: Apenas pedidos das últimas 24h
+   - Título da tela: "Meus Pedidos (24h)"
+
 ### 🔄 Estados e Transições
 
 #### Status de Quartos
