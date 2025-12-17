@@ -12,7 +12,7 @@ O aplicativo foi construído com as seguintes tecnologias modernas:
 - **Zustand** para gerenciamento de estado global
 - **Axios** para comunicação com a API REST
 - **Socket.io Client** para receber eventos em tempo real
-- **React Native NFC Manager** (preparado para integração)
+- **React Native NFC Manager** para leitura real de pulseiras NFC
 
 ## Funcionalidades Principais
 
@@ -201,7 +201,9 @@ pousada-mobile/
 │   ├── config/
 │   │   └── api.ts              # Configuração de URLs da API
 │   ├── hooks/
-│   │   └── useNFC.ts           # Hook para leitura NFC
+│   │   └── useNFC.ts           # Hook para leitura NFC (hardware real + mock)
+│   ├── components/
+│   │   └── ScreenWrapper.tsx  # Wrapper responsivo para todas as telas
 │   ├── screens/
 │   │   ├── ConfigScreen.tsx    # Seleção de modo
 │   │   ├── LoginScreen.tsx     # Login com PIN
