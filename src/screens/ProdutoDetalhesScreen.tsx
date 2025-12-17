@@ -3,10 +3,8 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   Image,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,6 +14,7 @@ import { useAppStore } from '../store/appStore';
 import { Produto, ModoApp } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import Button from '../components/Button';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 type ProdutoDetalhesScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ProdutoDetalhes'>;
@@ -86,8 +85,8 @@ export default function ProdutoDetalhesScreen({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+    <ScreenWrapper>
+      <View style={styles.content}>
         {/* Imagem do produto */}
         <View style={styles.imagemContainer}>
           {produto.foto ? (
@@ -160,7 +159,7 @@ export default function ProdutoDetalhesScreen({
             </View>
           )}
         </View>
-      </ScrollView>
+      </View>
 
       {/* Botão de adicionar ao carrinho */}
       {produto.estoque > 0 && (
@@ -174,17 +173,14 @@ export default function ProdutoDetalhesScreen({
           />
         </View>
       )}
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-  },
-  scrollView: {
-    flex: 1,
+  content: {
+    flexGrow: 1,
+    paddingBottom: spacing.xl,
   },
   imagemContainer: {
     width: '100%',

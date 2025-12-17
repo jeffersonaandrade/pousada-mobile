@@ -4,13 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import Button from '../components/Button';
 import SecureExitButton from '../components/SecureExitButton';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 type KioskWelcomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'KioskWelcome'>;
@@ -22,7 +22,7 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper contentContainerStyle={styles.content}>
       {/* Botão de saída discreto (ativado por toque longo no logo) */}
       <SecureExitButton modo="KIOSK" discreto />
       
@@ -71,8 +71,7 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
           fullWidth
           style={styles.continueButton}
         />
-      </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 

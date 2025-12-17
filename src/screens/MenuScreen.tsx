@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,6 +12,7 @@ import { useAppStore } from '../store/appStore';
 import { Role } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import SecureExitButton from '../components/SecureExitButton';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 type MenuScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Menu'>;
@@ -45,7 +45,7 @@ export default function MenuScreen({ navigation }: MenuScreenProps) {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       {/* Header customizado */}
       <View style={styles.customHeader}>
         <Text style={styles.headerTitle}>Menu Principal</Text>
@@ -126,15 +126,11 @@ export default function MenuScreen({ navigation }: MenuScreenProps) {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-  },
   customHeader: {
     backgroundColor: colors.primary,
     paddingTop: spacing.md,

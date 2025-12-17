@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { autenticarUsuario } from '../services/api';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import { Role } from '../types';
 import Button from '../components/Button';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { getErrorMessage } from '../utils/errorHandler';
 
 type LoginScreenProps = {
@@ -105,8 +105,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+    <ScreenWrapper contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.logoCircle}>
@@ -178,20 +177,16 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
           size="large"
           fullWidth
         />
-      </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-  },
   content: {
-    flex: 1,
+    flexGrow: 1,
     padding: spacing.lg,
     justifyContent: 'center',
+    paddingBottom: spacing.xl, // Margem extra para garantir espaço
   },
   header: {
     alignItems: 'center',

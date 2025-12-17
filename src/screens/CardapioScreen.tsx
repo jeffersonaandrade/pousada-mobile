@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   Image,
@@ -20,6 +19,7 @@ import { useNFC } from '../hooks/useNFC';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import LoadingState from '../components/LoadingState';
 import EmptyState from '../components/EmptyState';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { getErrorMessage } from '../utils/errorHandler';
 
 type CardapioScreenProps = {
@@ -202,26 +202,26 @@ export default function CardapioScreen({ navigation }: CardapioScreenProps) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper contentContainerStyle={styles.centerContent}>
         <LoadingState message="Carregando produtos..." />
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   if (!loading && produtos.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper contentContainerStyle={styles.centerContent}>
         <EmptyState
           icon="🍽️"
           title="Nenhum produto disponível"
           message="Não há produtos cadastrados no momento"
         />
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper scrollEnabled={false}>
       {/* Header com info do hóspede */}
       <View style={styles.header}>
         {hospedeSelecionado ? (
@@ -377,14 +377,15 @@ export default function CardapioScreen({ navigation }: CardapioScreenProps) {
           </Text>
         </TouchableOpacity>
       )}
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
+  centerContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     backgroundColor: colors.background,

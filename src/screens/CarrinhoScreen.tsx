@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   TextInput,
@@ -26,6 +25,7 @@ import Button from '../components/Button';
 import EmptyState from '../components/EmptyState';
 import { getErrorMessage } from '../utils/errorHandler';
 import Input from '../components/Input';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { useNFC } from '../hooks/useNFC';
 
 type CarrinhoScreenProps = {
@@ -585,7 +585,7 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
 
   if (carrinho.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper contentContainerStyle={styles.emptyContainer}>
         <EmptyState
           icon="🛒"
           title="Carrinho vazio"
@@ -599,14 +599,14 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
             fullWidth
           />
         </View>
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   const hospedeAtual = hospedeSelecionado || hospedeManual;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper scrollEnabled={false}>
       {/* Tabs de seleção (apenas modo GARCOM) */}
       {modo === 'GARCOM' && (
         <View style={styles.tabsContainer}>
@@ -821,14 +821,15 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
+  emptyContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
   },
   emptyActions: {
     padding: spacing.lg,

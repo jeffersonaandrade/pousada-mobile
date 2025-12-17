@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   Alert,
   ActivityIndicator,
@@ -17,6 +16,7 @@ import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import { getServerIP, saveServerIP, buildServerConfig } from '../services/config';
 import { updateApiBaseURL } from '../services/api';
 import { socketService } from '../services/socket';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 type ConfigScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Config'>;
@@ -141,18 +141,17 @@ export default function ConfigScreen({ navigation }: ConfigScreenProps) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper>
         <View style={[styles.content, styles.centerContent]}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Carregando configurações...</Text>
         </View>
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+    <ScreenWrapper contentContainerStyle={styles.content}>
         {/* Logo/Header */}
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
@@ -241,29 +240,27 @@ export default function ConfigScreen({ navigation }: ConfigScreenProps) {
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-  },
   content: {
-    flex: 1,
+    flexGrow: 1,
     padding: spacing.lg,
     justifyContent: 'center',
+    paddingBottom: spacing.xl, // Margem extra para garantir espaço quando o teclado aparecer
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    maxHeight: 120, // Limite máximo para telas grandes
+    aspectRatio: 1, // Mantém proporção quadrada
+    borderRadius: 50,
     backgroundColor: colors.secondary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -274,7 +271,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   logoText: {
-    fontSize: 64,
+    fontSize: 56, // Reduzido de 64 para 56
   },
   title: {
     ...typography.h1,
@@ -301,7 +298,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg, // Reduzido de xl para lg
+    marginTop: spacing.sm, // Adiciona margem superior
     elevation: 2,
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
@@ -352,6 +350,7 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     gap: spacing.md,
+    marginBottom: spacing.lg, // Margem inferior para garantir espaço
   },
   optionCard: {
     backgroundColor: colors.background,
@@ -359,6 +358,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 100, // Altura mínima ao invés de fixa
     elevation: 2,
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 2 },
@@ -378,16 +378,18 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.secondary,
   },
   optionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    minWidth: 56, // Garante tamanho mínimo
+    minHeight: 56,
+    borderRadius: 28,
     backgroundColor: colors.backgroundDark,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
   optionIconText: {
-    fontSize: 32,
+    fontSize: 28, // Reduzido de 32 para 28
   },
   optionTitle: {
     ...typography.h3,

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   RefreshControl,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import EmptyState from '../components/EmptyState';
 import LoadingState from '../components/LoadingState';
 import ManagerAuthModal from '../components/ManagerAuthModal';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { getErrorMessage } from '../utils/errorHandler';
 import { useAppStore } from '../store/appStore';
 
@@ -249,26 +249,26 @@ export default function PedidosScreen({ navigation }: PedidosScreenProps) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper contentContainerStyle={styles.centerContent}>
         <LoadingState message="Carregando pedidos..." />
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   if (pedidos.length === 0) {
     return (
-      <SafeAreaView style={styles.container}>
+      <ScreenWrapper contentContainerStyle={styles.centerContent}>
         <EmptyState
           icon="📋"
           title="Nenhum pedido encontrado"
           message="Não há pedidos registrados no momento"
         />
-      </SafeAreaView>
+      </ScreenWrapper>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper scrollEnabled={false}>
       <FlatList
         data={pedidos}
         renderItem={renderItem}
@@ -294,7 +294,7 @@ export default function PedidosScreen({ navigation }: PedidosScreenProps) {
         message="Esta ação exige senha de gerente para cancelar o pedido"
         loading={cancelando}
       />
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 

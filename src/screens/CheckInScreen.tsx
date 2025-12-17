@@ -4,10 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
-  ScrollView,
 } from 'react-native';
 import { Share } from 'react-native';
 import { useNFC } from '../hooks/useNFC';
@@ -25,6 +23,7 @@ import { getErrorMessage } from '../utils/errorHandler';
 import { validarNumero, aplicarMascaraMoeda, removerMascaraMoeda } from '../utils/validators';
 import { gerarResumoGastos } from '../utils/gerarResumoGastos';
 import SecureExitButton from '../components/SecureExitButton';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { useAppStore } from '../store/appStore';
 
 type ModoRecepcao = 'CHECKIN' | 'CHECKOUT';
@@ -240,15 +239,14 @@ export default function CheckInScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       {/* Header customizado */}
       <View style={styles.customHeader}>
         <Text style={styles.headerTitle}>
           {modoRecepcao === 'CHECKIN' ? 'Check-in de Hóspede' : 'Check-out de Hóspede'}
         </Text>
       </View>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.content}>
+      <View style={styles.content}>
           <Text style={styles.title}>
             {modoRecepcao === 'CHECKIN' ? 'Check-in de Hóspede' : 'Check-out de Hóspede'}
           </Text>
@@ -447,8 +445,7 @@ export default function CheckInScreen() {
             />
           )}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 

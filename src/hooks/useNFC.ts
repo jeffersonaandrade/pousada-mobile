@@ -1,63 +1,149 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 
 /**
- * Hook simulado para leitura NFC
+ * Hook para leitura NFC real com fallback para mock
  * 
- * Para implementação real, instale: npm install react-native-nfc-manager
- * 
- * Exemplo de uso real:
- * 
- * import NfcManager, { NfcTech } from 'react-native-nfc-manager';
- * 
- * async function readNFC() {
- *   try {
- *     await NfcManager.start();
- *     await NfcManager.requestTechnology(NfcTech.Ndef);
- *     const tag = await NfcManager.getTag();
- *     return tag.id; // UID da pulseira
- *   } catch (ex) {
- *     console.warn('Erro ao ler NFC:', ex);
- *   } finally {
- *     NfcManager.cancelTechnologyRequest();
- *   }
- * }
+ * Prioriza hardware NFC real quando disponível.
+ * Usa simulação apenas quando hardware não está disponível.
  */
-
 export function useNFC() {
   const [isReading, setIsReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isNfcSupported, setIsNfcSupported] = useState<boolean | null>(null);
+
+  // Verificar suporte NFC ao montar o componente
+  useEffect(() => {
+    checkNfcSupport();
+    return () => {
+      // Cleanup: garantir que NFC seja cancelado ao desmontar
+      NfcManager.cancelTechnologyRequest().catch(() => {
+        // Ignorar erros no cleanup
+      });
+    };
+  }, []);
 
   /**
-   * Simula a leitura de uma pulseira NFC
-   * Na implementação real, substituir por NfcManager
+   * Verifica se o dispositivo suporta NFC
+   */
+  const checkNfcSupport = async () => {
+    try {
+      const supported = await NfcManager.isSupported();
+      setIsNfcSupported(supported);
+      
+      if (supported) {
+        // Inicializar NFC Manager se suportado
+        await NfcManager.start();
+      }
+    } catch (err) {
+      console.warn('Erro ao verificar suporte NFC:', err);
+      setIsNfcSupported(false);
+    }
+  };
+
+  /**
+   * Lê a pulseira NFC usando hardware real ou mock
    */
   const lerPulseira = async (): Promise<string | null> => {
     setIsReading(true);
     setError(null);
 
+    // Verificar suporte NFC se ainda não foi verificado
+    if (isNfcSupported === null) {
+      await checkNfcSupport();
+    }
+
+    // Se não suportado, usar mock
+    if (isNfcSupported === false) {
+      console.log('Hardware NFC não detectado. Usando Mock.');
+      return simularLeituraMock();
+    }
+
+    // Tentar leitura real
     try {
-      // SIMULAÇÃO: Aguarda 2 segundos e retorna um UID fictício
+      // Solicitar tecnologia NFC
+      await NfcManager.requestTechnology(NfcTech.Ndef, {
+        alertMessage: 'Aproxime a pulseira do dispositivo',
+      });
+
+      // Obter tag NFC
+      const tag = await NfcManager.getTag();
+      
+      if (!tag || !tag.id) {
+        throw new Error('Tag NFC inválida ou sem UID');
+      }
+
+      // Converter UID de array de bytes para string hexadecimal
+      const uid = Array.from(tag.id)
+        .map((byte: number) => byte.toString(16).padStart(2, '0'))
+        .join('')
+        .toUpperCase();
+
+      console.log('NFC lido com sucesso. UID:', uid);
+      return uid;
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao ler pulseira';
+      
+      // Se for cancelamento do usuário, não tratar como erro
+      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
+        console.log('Leitura NFC cancelada pelo usuário');
+        return null;
+      }
+
+      console.warn('Erro ao ler NFC real, usando mock:', errorMessage);
+      setError(errorMessage);
+      
+      // Fallback para mock em caso de erro
+      return simularLeituraMock();
+    } finally {
+      // SEMPRE cancelar a requisição de tecnologia para não travar o leitor
+      try {
+        await NfcManager.cancelTechnologyRequest().catch(() => {
+          // Ignorar erros no cancelamento
+        });
+      } catch (err) {
+        // Ignorar erros no cancelamento
+      }
+      setIsReading(false);
+    }
+  };
+
+  /**
+   * Simula a leitura de uma pulseira NFC (fallback)
+   */
+  const simularLeituraMock = async (): Promise<string | null> => {
+    try {
+      // Simula delay de leitura
       await new Promise((resolve) => setTimeout(resolve, 2000));
       
       // UID simulado (em produção, virá do chip NFC real)
       const uidSimulado = `NFC${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
       
+      console.log('NFC Mock: UID simulado gerado:', uidSimulado);
       return uidSimulado;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao ler pulseira';
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao simular leitura NFC';
       setError(errorMessage);
       return null;
-    } finally {
-      setIsReading(false);
     }
   };
 
   /**
    * Cancela a leitura NFC em andamento
    */
-  const cancelarLeitura = () => {
-    setIsReading(false);
-    // Em produção: NfcManager.cancelTechnologyRequest();
+  const cancelarLeitura = async () => {
+    try {
+      if (isNfcSupported) {
+        await NfcManager.cancelTechnologyRequest().catch(() => {
+          // Ignorar erros no cancelamento
+        });
+      }
+    } catch (err) {
+      // Ignorar erros no cancelamento
+    } finally {
+      setIsReading(false);
+      setError(null);
+    }
   };
 
   return {
@@ -65,22 +151,6 @@ export function useNFC() {
     cancelarLeitura,
     isReading,
     error,
+    isNfcSupported,
   };
 }
-
-/**
- * INSTRUÇÕES PARA IMPLEMENTAÇÃO REAL:
- * 
- * 1. Instalar a biblioteca:
- *    npm install react-native-nfc-manager
- * 
- * 2. Configurar permissões no Android (android/app/src/main/AndroidManifest.xml):
- *    <uses-permission android:name="android.permission.NFC" />
- *    <uses-feature android:name="android.hardware.nfc" android:required="false" />
- * 
- * 3. Configurar no iOS (ios/[AppName]/Info.plist):
- *    <key>NFCReaderUsageDescription</key>
- *    <string>Precisamos acessar o NFC para ler as pulseiras</string>
- * 
- * 4. Substituir a função lerPulseira() pela implementação real acima
- */

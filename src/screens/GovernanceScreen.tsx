@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -11,6 +10,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
 import { useAppStore } from '../store/appStore';
 import RoomGrid from '../components/RoomGrid';
+import ScreenWrapper from '../components/ScreenWrapper';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 
 type GovernanceScreenProps = {
@@ -43,7 +43,7 @@ export default function GovernanceScreen({ navigation }: GovernanceScreenProps) 
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       {/* Header com título e botão sair */}
       <View style={styles.header}>
         <Text style={styles.title}>Governança / Limpeza</Text>
@@ -60,15 +60,11 @@ export default function GovernanceScreen({ navigation }: GovernanceScreenProps) 
       <View style={styles.content}>
         <RoomGrid mode="CLEANING" />
       </View>
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.backgroundLight,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

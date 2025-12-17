@@ -4,10 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
-  ScrollView,
   Switch,
 } from 'react-native';
 import { useNFC } from '../hooks/useNFC';
@@ -299,7 +297,7 @@ export default function RecepcaoScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <ScreenWrapper>
       {/* Header com Abas */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -700,7 +698,7 @@ export default function RecepcaoScreen() {
             )}
           </View>
         )}
-      </ScrollView>
+      </View>
 
       {/* Modal de Seleção de Quartos */}
       <RoomGrid
@@ -711,7 +709,7 @@ export default function RecepcaoScreen() {
         }}
         allowSelection={tipo === TipoCliente.HOSPEDE}
       />
-    </SafeAreaView>
+    </ScreenWrapper>
   );
 }
 
@@ -745,11 +743,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: 'bold',
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
+    flexGrow: 1,
     padding: spacing.lg,
+    paddingBottom: spacing.xl,
   },
   checkinContainer: {
     gap: spacing.lg,

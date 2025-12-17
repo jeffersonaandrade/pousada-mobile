@@ -736,6 +736,55 @@ Após configurar o app mobile, você pode:
 3. **Customizar o design** editando os estilos em cada tela
 4. **Adicionar novas funcionalidades** como histórico de pedidos, relatórios, etc.
 
+## Boas Práticas e Regras Técnicas
+
+### Responsividade e Layout
+
+#### ScreenWrapper Component
+
+O componente `ScreenWrapper` é usado em todas as telas para garantir:
+- Respeito às áreas seguras (notch/franjas) via `SafeAreaView`
+- Prevenção de sobreposição do teclado via `KeyboardAvoidingView`
+- Scroll automático quando necessário via `ScrollView`
+
+**IMPORTANTE - Regra de FlatList:**
+- **NUNCA** coloque `FlatList` dentro de `ScrollView` (causa warnings e problemas de performance)
+- Para telas com `FlatList`, use: `<ScreenWrapper scrollEnabled={false}>`
+- O `FlatList` controla sua própria rolagem internamente
+- Telas que usam `FlatList`:
+  - `CardapioScreen` - Lista de produtos
+  - `PedidosScreen` - Lista de pedidos
+  - `CarrinhoScreen` - Itens do carrinho
+
+#### Exemplo Correto:
+```typescript
+// ✅ CORRETO: FlatList sem ScrollView
+<ScreenWrapper scrollEnabled={false}>
+  <FlatList data={items} renderItem={...} />
+</ScreenWrapper>
+
+// ✅ CORRETO: Conteúdo normal com ScrollView
+<ScreenWrapper>
+  <View>...</View>
+  <Input ... />
+</ScreenWrapper>
+```
+
+### Leitura NFC
+
+#### Hardware Real vs Mock
+
+O hook `useNFC` prioriza hardware NFC real quando disponível:
+- Verifica suporte via `NfcManager.isSupported()`
+- Se suportado: usa leitura real com janela nativa do Android
+- Se não suportado: usa mock automático como fallback
+- Sempre cancela requisição NFC no `finally` para evitar travamentos
+
+**Comportamento:**
+- Dispositivo com NFC: Abre janela nativa "Aproxime a pulseira"
+- Dispositivo sem NFC: Usa simulação automática
+- Cancelamento: Tratado adequadamente sem erros
+
 ## Suporte
 
 Para dúvidas sobre Expo e React Native, consulte:
