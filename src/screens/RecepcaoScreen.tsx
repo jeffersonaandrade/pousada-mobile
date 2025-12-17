@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Switch,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { useNFC } from '../hooks/useNFC';
 import {
@@ -15,6 +16,8 @@ import {
   buscarHospedePorPulseira,
   realizarCheckout,
   buscarPedidosPorHospede,
+  buscarQuartos,
+  buscarHospedesPorQuarto,
 } from '../services/api';
 import { TipoCliente, Hospede, Pedido, MetodoPagamento } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
@@ -50,6 +53,7 @@ export default function RecepcaoScreen() {
   const [pedidosCheckout, setPedidosCheckout] = useState<Pedido[]>([]);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
+  const [metodoPagamentoCheckout, setMetodoPagamentoCheckout] = useState<MetodoPagamento | null>(null);
 
   const { lerPulseira, isReading } = useNFC();
 
@@ -258,9 +262,85 @@ export default function RecepcaoScreen() {
       Alert.alert('Sucesso', mensagemSucesso);
       limparFormularioCheckin();
     } catch (error: unknown) {
-      Alert.alert('Erro', getErrorMessage(error));
+      // Tratamento específico para erro 409 (Pulseira em uso)
+      const status = (error as any)?.response?.status;
+      const errorData = (error as any)?.response?.data;
+      
+      if (status === 409) {
+        // Erro de pulseira em uso
+        const mensagem = errorData?.message || errorData?.error || 'Pulseira já está em uso por outro hóspede';
+        Alert.alert(
+          'Pulseira em Uso',
+          mensagem,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Limpar campo de pulseira para permitir nova leitura
+                setUidPulseira('');
+              },
+            },
+          ]
+        );
+      } else {
+        // Outros erros - tratamento padrão
+        Alert.alert('Erro', getErrorMessage(error));
+      }
     } finally {
       setLoadingCheckin(false);
+    }
+  };
+
+  // Handler para adicionar acompanhante
+  const handleAdicionarAcompanhante = (quarto: Quarto) => {
+    // Preencher o quarto automaticamente
+    setQuartoSelecionado(quarto);
+    // Garantir que está no modo check-in
+    setModoRecepcao('CHECKIN');
+    // Fechar o modal do RoomGrid
+    setMostrarRoomGrid(false);
+    // O quarto já está preenchido, usuário pode preencher os outros campos
+    Alert.alert(
+      'Adicionar Acompanhante',
+      `Quarto ${quarto.numero} selecionado. Preencha os dados do acompanhante e grave a pulseira.`,
+      [{ text: 'OK' }]
+    );
+  };
+
+  // Handler para fazer checkout de quarto ocupado
+  const handleCheckoutQuarto = async (quarto: Quarto) => {
+    setQuartoParaCheckout(quarto);
+    setLoadingCheckout(true);
+    try {
+      // Buscar todos os hóspedes ativos do quarto
+      const hospedes = await buscarHospedesPorQuarto(quarto.id);
+      
+      if (hospedes.length === 0) {
+        Alert.alert('Atenção', 'Nenhum hóspede ativo encontrado neste quarto');
+        return;
+      }
+      
+      if (hospedes.length === 1) {
+        // Apenas um hóspede, fazer checkout direto
+        const hospede = hospedes[0];
+        setHospedeCheckout(hospede);
+        // Buscar pedidos
+        try {
+          const pedidos = await buscarPedidosPorHospede(hospede.id);
+          setPedidosCheckout(pedidos);
+        } catch (errorPedidos: unknown) {
+          console.warn('Erro ao buscar pedidos:', errorPedidos);
+        }
+        setModoRecepcao('CHECKOUT');
+      } else {
+        // Múltiplos hóspedes, mostrar modal de seleção
+        setHospedesQuarto(hospedes);
+        setMostrarSelecaoHospede(true);
+      }
+    } catch (error: unknown) {
+      Alert.alert('Erro', getErrorMessage(error));
+    } finally {
+      setLoadingCheckout(false);
     }
   };
 
@@ -268,20 +348,49 @@ export default function RecepcaoScreen() {
   const receberPagamento = async () => {
     if (!hospedeCheckout) return;
 
+    // Validar método de pagamento
+    if (!metodoPagamentoCheckout) {
+      Alert.alert('Atenção', 'Selecione a forma de pagamento');
+      return;
+    }
+
     setProcessandoPagamento(true);
     try {
-      await realizarCheckout(hospedeCheckout.id);
+      // CORREÇÃO 5: Revalidar hóspede antes de processar checkout
+      let hospedeRevalidado: Hospede;
+      try {
+        hospedeRevalidado = await buscarHospedePorPulseira(hospedeCheckout.uidPulseira);
+        if (!hospedeRevalidado.ativo) {
+          Alert.alert('Erro', 'Hóspede não está mais ativo. Verifique com a recepção.');
+          setProcessandoPagamento(false);
+          return;
+        }
+        setHospedeCheckout(hospedeRevalidado); // Atualiza com dados frescos
+      } catch (errorHospede: unknown) {
+        Alert.alert('Erro', 'Não foi possível validar o hóspede. Tente novamente.');
+        setProcessandoPagamento(false);
+        return;
+      }
+
+      const resultado = await realizarCheckout(hospedeRevalidado.id, metodoPagamentoCheckout);
       
-      // Mensagem de sucesso com informação sobre limpeza
-      const mensagemQuarto = hospedeCheckout.quarto
-        ? `\n\nQuarto ${hospedeCheckout.quarto} marcado para LIMPEZA.`
-        : '';
+      // Usar mensagem do backend (pode indicar se quarto foi liberado ou não)
+      Alert.alert('Sucesso', resultado.message);
       
-      Alert.alert('Sucesso', `Pagamento recebido! Pulseira liberada.${mensagemQuarto}`);
+      // Recarregar quartos para refletir status atualizado
+      try {
+        await buscarQuartos();
+        // Nota: Se houver um RoomGrid visível, ele deve recarregar automaticamente
+        // ou podemos forçar um refresh se necessário
+      } catch (errorQuartos: unknown) {
+        // Não bloquear o fluxo se falhar ao recarregar quartos
+        console.warn('Erro ao recarregar quartos após checkout:', errorQuartos);
+      }
       
       // Limpar estado e voltar ao início
       setHospedeCheckout(null);
       setPedidosCheckout([]);
+      setMetodoPagamentoCheckout(null);
     } catch (error: unknown) {
       Alert.alert('Erro', getErrorMessage(error));
     } finally {
@@ -673,6 +782,81 @@ export default function RecepcaoScreen() {
                   </Text>
                 </View>
 
+                {/* Seleção de Método de Pagamento */}
+                <View style={styles.pagamentoContainer}>
+                  <Text style={styles.pagamentoLabel}>Forma de Pagamento *</Text>
+                  <View style={styles.pagamentoButtons}>
+                    <TouchableOpacity
+                      style={[
+                        styles.pagamentoButton,
+                        metodoPagamentoCheckout === MetodoPagamento.DINHEIRO && styles.pagamentoButtonActive,
+                      ]}
+                      onPress={() => setMetodoPagamentoCheckout(MetodoPagamento.DINHEIRO)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pagamentoButtonText,
+                          metodoPagamentoCheckout === MetodoPagamento.DINHEIRO && styles.pagamentoButtonTextActive,
+                        ]}
+                      >
+                        Dinheiro
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.pagamentoButton,
+                        metodoPagamentoCheckout === MetodoPagamento.PIX && styles.pagamentoButtonActive,
+                      ]}
+                      onPress={() => setMetodoPagamentoCheckout(MetodoPagamento.PIX)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pagamentoButtonText,
+                          metodoPagamentoCheckout === MetodoPagamento.PIX && styles.pagamentoButtonTextActive,
+                        ]}
+                      >
+                        Pix
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.pagamentoButton,
+                        metodoPagamentoCheckout === MetodoPagamento.CREDITO && styles.pagamentoButtonActive,
+                      ]}
+                      onPress={() => setMetodoPagamentoCheckout(MetodoPagamento.CREDITO)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pagamentoButtonText,
+                          metodoPagamentoCheckout === MetodoPagamento.CREDITO && styles.pagamentoButtonTextActive,
+                        ]}
+                      >
+                        Crédito
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.pagamentoButton,
+                        metodoPagamentoCheckout === MetodoPagamento.DEBITO && styles.pagamentoButtonActive,
+                      ]}
+                      onPress={() => setMetodoPagamentoCheckout(MetodoPagamento.DEBITO)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.pagamentoButtonText,
+                          metodoPagamentoCheckout === MetodoPagamento.DEBITO && styles.pagamentoButtonTextActive,
+                        ]}
+                      >
+                        Débito
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 {/* Botão Receber Pagamento */}
                 <Button
                   title="Receber Pagamento"
@@ -680,6 +864,7 @@ export default function RecepcaoScreen() {
                   variant="primary"
                   size="large"
                   loading={processandoPagamento}
+                  disabled={!metodoPagamentoCheckout}
                   fullWidth
                   style={styles.buttonTablet}
                 />
@@ -690,6 +875,7 @@ export default function RecepcaoScreen() {
                   onPress={() => {
                     setHospedeCheckout(null);
                     setPedidosCheckout([]);
+                    setMetodoPagamentoCheckout(null);
                   }}
                   variant="outline"
                   size="large"
@@ -709,8 +895,66 @@ export default function RecepcaoScreen() {
         onSelectRoom={(quarto) => {
           setQuartoSelecionado(quarto);
         }}
+        onAddCompanion={handleAdicionarAcompanhante}
+        onCheckout={handleCheckoutQuarto}
         allowSelection={tipo === TipoCliente.HOSPEDE}
       />
+
+      {/* Modal de Seleção de Hóspede para Checkout */}
+      <Modal
+        visible={mostrarSelecaoHospede}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMostrarSelecaoHospede(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              Selecionar Hóspede para Checkout
+            </Text>
+            <Text style={styles.modalMessage}>
+              Quarto {quartoParaCheckout?.numero} possui {hospedesQuarto.length} hóspede(s). Qual pulseira está sendo devolvida?
+            </Text>
+            <ScrollView style={styles.hospedesList}>
+              {hospedesQuarto.map((hospede) => (
+                <TouchableOpacity
+                  key={hospede.id}
+                  style={styles.hospedeOption}
+                  onPress={async () => {
+                    setHospedeCheckout(hospede);
+                    setMostrarSelecaoHospede(false);
+                    // Buscar pedidos
+                    try {
+                      const pedidos = await buscarPedidosPorHospede(hospede.id);
+                      setPedidosCheckout(pedidos);
+                    } catch (errorPedidos: unknown) {
+                      console.warn('Erro ao buscar pedidos:', errorPedidos);
+                    }
+                    setModoRecepcao('CHECKOUT');
+                  }}
+                >
+                  <Text style={styles.hospedeOptionNome}>{hospede.nome}</Text>
+                  <Text style={styles.hospedeOptionDivida}>
+                    Dívida: R$ {hospede.dividaAtual.toFixed(2).replace('.', ',')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Button
+              title="Cancelar"
+              onPress={() => {
+                setMostrarSelecaoHospede(false);
+                setHospedesQuarto([]);
+                setQuartoParaCheckout(null);
+              }}
+              variant="outline"
+              size="medium"
+              fullWidth
+              style={styles.modalButton}
+            />
+          </View>
+        </View>
+      </Modal>
     </ScreenWrapper>
   );
 }
@@ -839,6 +1083,41 @@ const styles = StyleSheet.create({
   pagamentoContainerActive: {
     backgroundColor: colors.success + '15', // Verde claro
     borderColor: colors.success,
+  },
+  pagamentoLabel: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  pagamentoButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  pagamentoButton: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+  },
+  pagamentoButtonActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + '20',
+  },
+  pagamentoButtonText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  pagamentoButtonTextActive: {
+    color: colors.primary,
+    fontWeight: 'bold',
   },
   switchContainer: {
     flexDirection: 'row',
@@ -999,6 +1278,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     marginLeft: spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: colors.shadowDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    ...typography.h2,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    textAlign: 'center',
+  },
+  hospedesList: {
+    maxHeight: 300,
+    marginBottom: spacing.lg,
+  },
+  hospedeOption: {
+    backgroundColor: colors.backgroundDark,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  hospedeOptionNome: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  hospedeOptionDivida: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
+  },
+  modalButton: {
+    marginTop: spacing.md,
   },
 });
 

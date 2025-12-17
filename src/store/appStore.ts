@@ -20,6 +20,7 @@ interface AppState {
   removerDoCarrinho: (produtoId: number) => void;
   incrementarItem: (produtoId: number) => void;
   decrementarItem: (produtoId: number) => void;
+  atualizarProdutoNoCarrinho: (produtoId: number, produto: Produto) => void;
   limparCarrinho: () => void;
 
   // Reset completo
@@ -103,6 +104,15 @@ export const useAppStore = create<AppState>((set) => ({
         ),
       };
     }),
+  
+  atualizarProdutoNoCarrinho: (produtoId, produto) =>
+    set((state) => ({
+      carrinho: state.carrinho.map((item) =>
+        item.produto.id === produtoId
+          ? { ...item, produto }
+          : item
+      ),
+    })),
   
   limparCarrinho: () => set({ carrinho: [] }),
   

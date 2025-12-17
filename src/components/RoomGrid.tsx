@@ -22,6 +22,8 @@ type RoomGridProps = {
   visible?: boolean; // Opcional para quando usado como componente principal (não modal)
   onClose?: () => void; // Opcional para quando usado como componente principal
   onSelectRoom?: (quarto: Quarto) => void; // Opcional para modo CLEANING
+  onAddCompanion?: (quarto: Quarto) => void; // Callback para adicionar acompanhante em quarto ocupado
+  onCheckout?: (quarto: Quarto) => void; // Callback para fazer checkout de quarto ocupado
   allowSelection?: boolean; // Se true, permite selecionar quartos LIVRE (modo SELECTION)
   mode?: RoomGridMode; // Modo de operação: 'SELECTION' (padrão) ou 'CLEANING'
 };
@@ -30,6 +32,8 @@ export default function RoomGrid({
   visible = true, // Padrão true para quando usado como componente principal
   onClose,
   onSelectRoom,
+  onAddCompanion,
+  onCheckout,
   allowSelection = false,
   mode = 'SELECTION',
 }: RoomGridProps) {
@@ -204,7 +208,37 @@ export default function RoomGrid({
       return;
     }
 
-    // Se for OCUPADO, apenas mostra informação
+    // Se for OCUPADO no modo SELECTION, mostrar opções
+    if (quarto.status === StatusQuarto.OCUPADO && mode === 'SELECTION') {
+      const nomeHospede = quarto.hospedeAtual?.nome || 'Desconhecido';
+      Alert.alert(
+        'Quarto Ocupado',
+        `Quarto ${quarto.numero}\nHóspede: ${nomeHospede}\n\nO que deseja fazer?`,
+        [
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+          {
+            text: 'Adicionar Acompanhante',
+            onPress: () => {
+              onAddCompanion?.(quarto);
+              onClose?.();
+            },
+          },
+          {
+            text: 'Fazer Checkout',
+            onPress: () => {
+              onCheckout?.(quarto);
+              onClose?.();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Se for OCUPADO em outros modos, apenas mostra informação
     if (quarto.status === StatusQuarto.OCUPADO) {
       const nomeHospede = quarto.hospedeAtual?.nome || 'Desconhecido';
       Alert.alert(

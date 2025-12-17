@@ -14,8 +14,9 @@ import {
   buscarHospedePorPulseira,
   realizarCheckout,
   buscarPedidosPorHospede,
+  buscarQuartos,
 } from '../services/api';
-import { TipoCliente, Hospede, Pedido } from '../types';
+import { TipoCliente, Hospede, Pedido, MetodoPagamento } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -176,10 +177,13 @@ export default function CheckInScreen() {
           onPress: async () => {
             setLoading(true);
             try {
-              await realizarCheckout(hospedeCheckout.id);
+              // Usar DINHEIRO como padrão (ou adicionar seleção de método se necessário)
+              const resultado = await realizarCheckout(hospedeCheckout.id, MetodoPagamento.DINHEIRO);
+              
+              // Usar mensagem do backend (pode indicar se quarto foi liberado ou não)
               Alert.alert(
                 'Sucesso',
-                `Check-out realizado com sucesso!\nPulseira liberada para ${hospedeCheckout.nome}.`,
+                resultado.message,
                 [
                   {
                     text: 'OK',
@@ -191,6 +195,15 @@ export default function CheckInScreen() {
                   },
                 ]
               );
+              
+              // Recarregar quartos para refletir status atualizado
+              try {
+                await buscarQuartos();
+                // Nota: Se houver um RoomGrid visível, ele deve recarregar automaticamente
+              } catch (errorQuartos: unknown) {
+                // Não bloquear o fluxo se falhar ao recarregar quartos
+                console.warn('Erro ao recarregar quartos após checkout:', errorQuartos);
+              }
             } catch (error: unknown) {
               Alert.alert('Erro', getErrorMessage(error));
             } finally {

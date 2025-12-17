@@ -268,11 +268,14 @@ pousada-mobile/
 ### Fluxo 3: Autoatendimento (Modo Kiosk)
 
 1. Abrir o app e selecionar **Kiosk**
-2. Aproximar pulseira para identificação
-3. Navegar pelo cardápio
-4. Adicionar produtos ao carrinho
-5. Finalizar pedido
-6. Sistema processa e envia para a cozinha
+2. Tela inicial exibe duas opções:
+   - **🍽️ Fazer Pedido**: Para realizar pedidos
+   - **📋 Ver Extrato / Minha Conta**: Para consultar consumo
+3. Ao clicar em qualquer opção, abre modal de leitura NFC
+4. Aproximar pulseira para identificação
+5. **Se escolheu "Fazer Pedido"**: Navega para cardápio e segue fluxo normal
+6. **Se escolheu "Ver Extrato"**: Navega para tela de extrato com lista de pedidos
+7. Após finalizar pedido, sistema faz logout automático e retorna para tela inicial
 
 ## Customização e Extensão
 
@@ -507,28 +510,71 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
 
 #### Seleção de Quarto no Check-in
 
-1. **Apenas Quartos Livres**
-   - No mapa visual, apenas quartos com status `LIVRE` são selecionáveis
+1. **Apenas Quartos Livres (Check-in Normal)**
+   - No mapa visual, apenas quartos com status `LIVRE` são selecionáveis para check-in normal
    - Quartos `OCUPADO` mostram nome do hóspede atual e ícone de bloqueio
    - Quartos `LIMPEZA` podem ser liberados diretamente pelo tablet
    - Quartos `MANUTENCAO` não são selecionáveis (bloqueados para manutenção)
 
-2. **Envio de quartoId**
+2. **Adicionar Acompanhante em Quarto Ocupado**
+   - Ao clicar em um quarto com status `OCUPADO`, o sistema exibe um alert com 3 opções:
+     - **"Adicionar Acompanhante"**: Permite fazer check-in de segunda/terceira pessoa no mesmo quarto
+     - **"Fazer Checkout"**: Inicia processo de checkout (ver seção abaixo)
+     - **"Cancelar"**: Fecha o alert
+   - Ao selecionar "Adicionar Acompanhante":
+     - O quarto é automaticamente preenchido no formulário de check-in
+     - Sistema garante que está no modo CHECKIN
+     - Recepcionista preenche dados do acompanhante normalmente
+     - Backend permite salvar mesmo com quarto já ocupado
+     - Útil para famílias ou casais que chegam em momentos diferentes
+
+3. **Envio de quartoId**
    - Para clientes do tipo `HOSPEDE`, o payload **DEVE** conter:
      - `quartoId`: ID numérico do quarto (obrigatório)
      - `quarto`: Número do quarto em string (compatibilidade)
    - Validação obrigatória: se `tipo === 'HOSPEDE'` e não houver `quartoSelecionado?.id`, exibe erro
 
-3. **Liberação de Quartos em Limpeza**
+4. **Liberação de Quartos em Limpeza**
    - Camareira pode liberar quartos em limpeza diretamente pelo tablet
    - Ao clicar em quarto `LIMPEZA`, sistema pergunta: "Liberar quarto X para uso?"
    - Ao confirmar, atualiza status para `LIVRE` via API
 
 #### Check-out e Limpeza
 
-1. **Marcação Automática para Limpeza**
+1. **Iniciar Checkout a partir do Mapa de Quartos**
+   - Ao clicar em um quarto `OCUPADO` no mapa, o sistema oferece opção "Fazer Checkout"
+   - Sistema busca automaticamente todos os hóspedes ativos daquele quarto via `GET /api/hospedes?quartoId=X&ativo=true`
+   - **Cenário 1: Quarto com 1 hóspede**
+     - Sistema carrega automaticamente os dados do hóspede
+     - Busca pedidos do hóspede
+     - Navega direto para tela de checkout
+   - **Cenário 2: Quarto com múltiplos hóspedes**
+     - Sistema abre modal de seleção
+     - Modal lista todos os hóspedes ativos do quarto
+     - Cada hóspede exibe: Nome e Dívida atual
+     - Recepcionista seleciona qual pulseira está sendo devolvida
+     - Ao selecionar, sistema carrega pedidos e navega para checkout
+
+2. **Marcação Automática para Limpeza**
    - Ao realizar checkout, se o hóspede tinha quarto, o sistema marca automaticamente para `LIMPEZA`
    - Mensagem de sucesso informa: "Quarto X marcado para LIMPEZA"
+
+3. **Checkout Parcial (Múltiplos Hóspedes)**
+   - O backend suporta múltiplos hóspedes no mesmo quarto
+   - Ao fazer checkout de um hóspede, o quarto pode não ser liberado imediatamente se houver outros hóspedes ocupando-o
+   - **Mensagem Dinâmica do Backend:**
+     - O sistema exibe a mensagem retornada pela API (`response.data.message`)
+     - Exemplos de mensagens:
+       - "Checkout realizado. O quarto permanece ocupado por 1 pessoa."
+       - "Checkout realizado. Quarto liberado para limpeza."
+   - **Atualização de Status:**
+     - Após checkout bem-sucedido, o sistema recarrega automaticamente a lista de quartos
+     - O status do quarto é atualizado no banco de dados (pode continuar `OCUPADO` ou mudar para `LIMPEZA`)
+     - O mapa visual de quartos reflete a cor real do quarto vinda do backend
+   - **Método de Pagamento:**
+     - É obrigatório selecionar a forma de pagamento antes de processar o checkout
+     - Opções disponíveis: Dinheiro, Pix, Crédito, Débito
+     - O método é enviado no payload: `{ metodoPagamento: "DINHEIRO", valorPagamento?: number }`
 
 #### Governança e Manutenção (Modo CLEANER)
 
@@ -718,6 +764,76 @@ Este documento descreve todas as regras de negócio implementadas no aplicativo 
    - `usuarioId`: ID do funcionário logado (para WAITER e MANAGER)
    - `recente: true`: Apenas pedidos das últimas 24h
    - Título da tela: "Meus Pedidos (24h)"
+
+### 🏪 Modo Kiosk - Extrato e Consulta
+
+#### Tela Inicial do Kiosk
+
+1. **Dois Botões Principais**
+   - **🍽️ Fazer Pedido**: Inicia fluxo de pedidos (navega para CardapioScreen)
+   - **📋 Ver Extrato / Minha Conta**: Inicia fluxo de consulta (navega para KioskExtratoScreen)
+
+2. **Modal de Leitura NFC**
+   - Ambos os botões abrem o mesmo modal de leitura NFC
+   - Sistema salva a intenção do usuário (`ORDER` ou `STATEMENT`)
+   - Após ler pulseira, navega conforme a intenção:
+     - `ORDER` → CardapioScreen
+     - `STATEMENT` → KioskExtratoScreen
+
+#### Tela de Extrato (KioskExtratoScreen)
+
+1. **Header com Informações do Hóspede**
+   - Nome do hóspede (grande e destacado)
+   - Total da dívida atual (valor grande e visível)
+
+2. **Lista de Pedidos**
+   - Exibe todos os pedidos do hóspede via `GET /api/pedidos?hospedeId=X`
+   - Cada item mostra:
+     - Nome do produto
+     - Data e hora do pedido
+     - Quantidade (sempre 1 por item)
+     - Valor total do item
+   - Lista ordenada por data (mais recente primeiro)
+
+3. **Timeout Automático de Segurança**
+   - **30 segundos** de inatividade → retorna automaticamente para tela inicial
+   - Timeout é resetado a cada interação:
+     - Toque na tela
+     - Scroll na lista
+     - Qualquer ação do usuário
+   - Previne sessões esquecidas abertas
+
+4. **Botão Voltar**
+   - Limpa dados do hóspede (logout)
+   - Retorna para `KioskWelcome`
+   - Reseta timeout
+
+#### Atualização de Dívida em Tempo Real
+
+1. **Após Finalizar Pedido**
+   - Sistema recarrega automaticamente os dados do hóspede via `buscarHospedePorPulseira()`
+   - Atualiza `hospedeSelecionado` no store com dívida atualizada
+   - **Modo KIOSK**: Atualiza antes de fazer logout automático
+   - **Modo GARCOM**: Atualiza antes de voltar para cardápio
+   - CardapioScreen reflete a nova dívida imediatamente no cabeçalho
+
+2. **Modo Manual (Sem Pulseira)**
+   - Não atualiza dívida automaticamente (não há `uidPulseira` para buscar)
+   - Dívida será atualizada na próxima vez que o hóspede for buscado
+
+#### Logout Automático no Kiosk
+
+1. **Após Finalizar Pedido com Sucesso**
+   - Exibe alerta: "Pedido enviado com sucesso!"
+   - Ao fechar alerta:
+     - Limpa `hospedeSelecionado` (logout do cliente)
+     - Limpa carrinho
+     - Navega para `KioskWelcome` usando `navigation.reset()` (limpa histórico)
+   - Tela volta para estado inicial: "Aproxime sua pulseira NFC para começar"
+
+2. **Comportamento por Modo**
+   - **KIOSK**: Logout automático após cada pedido
+   - **GARCOM**: Mantém garçom logado, apenas limpa carrinho e volta para cardápio
 
 ### 🔄 Estados e Transições
 

@@ -159,6 +159,17 @@ export const buscarHospedePorNome = async (nome: string): Promise<Hospede[]> => 
   return hospedes;
 };
 
+// Buscar hóspedes por quartoId - retorna todos os hóspedes ativos de um quarto
+export const buscarHospedesPorQuarto = async (quartoId: number): Promise<Hospede[]> => {
+  const response = await api.get<ApiResponse<Hospede[]>>(`/hospedes`, {
+    params: { quartoId: quartoId.toString(), ativo: 'true' },
+  });
+  if (!response.data.success || !response.data.data) {
+    throw new Error(response.data.error || 'Erro ao buscar hóspedes do quarto');
+  }
+  return response.data.data;
+};
+
 export const criarHospede = async (data: {
   tipo: TipoCliente;
   nome: string;
@@ -179,12 +190,58 @@ export const criarHospede = async (data: {
   return response.data.data;
 };
 
-export const realizarCheckout = async (hospedeId: number): Promise<Hospede> => {
-  const response = await api.patch<ApiResponse<Hospede>>(`/hospedes/${hospedeId}/checkout`);
-  if (!response.data.success || !response.data.data) {
-    throw new Error(response.data.error || 'Erro ao realizar checkout');
+export interface CheckoutResult {
+  hospede: Hospede;
+  message: string;
+}
+
+export const realizarCheckout = async (
+  hospedeId: number,
+  metodoPagamento: string,
+  valorPagamento?: number
+): Promise<CheckoutResult> => {
+  try {
+    // Preparar payload conforme especificação do backend
+    const payload: {
+      metodoPagamento: string;
+      valorPagamento?: number;
+    } = {
+      metodoPagamento,
+    };
+
+    // Adicionar valorPagamento apenas se fornecido
+    if (valorPagamento !== undefined && valorPagamento > 0) {
+      payload.valorPagamento = valorPagamento;
+    }
+
+    // POST para /hospedes/:id/checkout com método de pagamento
+    const response = await api.post<ApiResponse<Hospede>>(
+      `/hospedes/${hospedeId}/checkout`,
+      payload
+    );
+
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Erro ao realizar checkout');
+    }
+
+    // Retornar hóspede e mensagem do backend
+    return {
+      hospede: response.data.data,
+      message: response.data.message || 'Checkout realizado com sucesso!',
+    };
+  } catch (error: any) {
+    // Melhorar mensagem de erro com status code
+    const status = error.response?.status;
+    const errorMessage = error.response?.data?.error || error.message || 'Erro ao realizar checkout';
+
+    if (status === 404) {
+      throw new Error(`Erro 404: Rota não encontrada. ${errorMessage}`);
+    } else if (status) {
+      throw new Error(`Erro ${status}: ${errorMessage}`);
+    }
+
+    throw new Error(errorMessage);
   }
-  return response.data.data;
 };
 
 // Endpoint administrativo - não usado no frontend de pedidos

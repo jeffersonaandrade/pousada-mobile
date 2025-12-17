@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Dimensions,
+  Modal,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
@@ -11,19 +14,69 @@ import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import Button from '../components/Button';
 import SecureExitButton from '../components/SecureExitButton';
 import ScreenWrapper from '../components/ScreenWrapper';
+import { useNFC } from '../hooks/useNFC';
+import { buscarHospedePorPulseira } from '../services/api';
+import { useAppStore } from '../store/appStore';
+import { getErrorMessage } from '../utils/errorHandler';
 
 type KioskWelcomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'KioskWelcome'>;
 };
 
+type KioskAction = 'ORDER' | 'STATEMENT';
+
 export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenProps) {
-  const handleContinuar = () => {
-    navigation.navigate('Cardapio');
-  };
+  const { setHospedeSelecionado } = useAppStore();
+  const { lerPulseira, isReading } = useNFC();
+  const [mostrarModalNFC, setMostrarModalNFC] = useState(false);
+  const [acaoSelecionada, setAcaoSelecionada] = useState<KioskAction | null>(null);
+  const [lendoPulseira, setLendoPulseira] = useState(false);
 
   // Detectar se é tela pequena para ajustar espaçamentos
   const screenHeight = Dimensions.get('window').height;
   const isSmallScreen = screenHeight < 700;
+
+  const handleAbrirModalNFC = (acao: KioskAction) => {
+    setAcaoSelecionada(acao);
+    setMostrarModalNFC(true);
+  };
+
+  const handleLerPulseira = async () => {
+    if (!acaoSelecionada) return;
+
+    setLendoPulseira(true);
+    try {
+      const uid = await lerPulseira();
+      if (!uid) {
+        Alert.alert('Erro', 'Não foi possível ler a pulseira');
+        return;
+      }
+
+      // Buscar hóspede pela pulseira
+      const hospede = await buscarHospedePorPulseira(uid);
+      setHospedeSelecionado(hospede);
+
+      // Fechar modal
+      setMostrarModalNFC(false);
+      setAcaoSelecionada(null);
+
+      // Navegar conforme a ação selecionada
+      if (acaoSelecionada === 'ORDER') {
+        navigation.navigate('Cardapio');
+      } else if (acaoSelecionada === 'STATEMENT') {
+        navigation.navigate('KioskExtrato');
+      }
+    } catch (error: unknown) {
+      Alert.alert('Erro', getErrorMessage(error));
+    } finally {
+      setLendoPulseira(false);
+    }
+  };
+
+  const handleFecharModal = () => {
+    setMostrarModalNFC(false);
+    setAcaoSelecionada(null);
+  };
 
   return (
     <ScreenWrapper scrollEnabled={true} contentContainerStyle={styles.scrollContent}>
@@ -66,16 +119,62 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
           </View>
         </View>
 
-        {/* Botão para continuar */}
-        <Button
-          title="Continuar"
-          onPress={handleContinuar}
-          variant="primary"
-          size="large"
-          fullWidth
-          style={styles.continueButton}
-        />
+        {/* Botões de ação */}
+        <View style={styles.buttonsContainer}>
+          <Button
+            title="🍽️ Fazer Pedido"
+            onPress={() => handleAbrirModalNFC('ORDER')}
+            variant="primary"
+            size="large"
+            fullWidth
+            style={styles.actionButton}
+          />
+          <Button
+            title="📋 Ver Extrato / Minha Conta"
+            onPress={() => handleAbrirModalNFC('STATEMENT')}
+            variant="secondary"
+            size="large"
+            fullWidth
+            style={styles.actionButton}
+          />
+        </View>
       </View>
+
+      {/* Modal de leitura NFC */}
+      <Modal
+        visible={mostrarModalNFC}
+        transparent
+        animationType="fade"
+        onRequestClose={handleFecharModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {acaoSelecionada === 'ORDER' ? 'Fazer Pedido' : 'Ver Extrato'}
+            </Text>
+            <Text style={styles.modalMessage}>
+              Aproxime sua pulseira NFC do dispositivo
+            </Text>
+            {lendoPulseira || isReading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={styles.modalLoading} />
+            ) : (
+              <View style={styles.modalIcon}>
+                <Text style={styles.modalIconText}>📱</Text>
+              </View>
+            )}
+            <View style={styles.modalButtons}>
+              <Button
+                title="Cancelar"
+                onPress={handleFecharModal}
+                variant="outline"
+                size="medium"
+                style={styles.modalButton}
+                disabled={lendoPulseira || isReading}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenWrapper>
   );
 }
@@ -183,8 +282,67 @@ const styles = StyleSheet.create({
     color: colors.text,
     flex: 1,
   },
-  continueButton: {
+  buttonsContainer: {
+    gap: spacing.md,
     marginTop: spacing.md,
+  },
+  actionButton: {
+    minHeight: 64,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
+    elevation: 10,
+    shadowColor: colors.shadowDark,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  modalTitle: {
+    ...typography.h2,
+    fontWeight: 'bold',
+    color: colors.text,
+    marginBottom: spacing.md,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    ...typography.body,
+    color: colors.textSecondary,
+    marginBottom: spacing.xl,
+    textAlign: 'center',
+  },
+  modalIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.secondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  modalIconText: {
+    fontSize: 64,
+  },
+  modalLoading: {
+    marginBottom: spacing.xl,
+  },
+  modalButtons: {
+    width: '100%',
+    gap: spacing.sm,
+  },
+  modalButton: {
+    width: '100%',
   },
 });
 

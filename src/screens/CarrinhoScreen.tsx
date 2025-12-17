@@ -18,6 +18,7 @@ import {
   buscarHospedePorPulseira,
   buscarHospedePorQuarto,
   buscarHospedePorNome,
+  listarProdutos,
 } from '../services/api';
 import { Produto, Hospede } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
@@ -42,6 +43,7 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
     removerDoCarrinho,
     incrementarItem,
     decrementarItem,
+    atualizarProdutoNoCarrinho,
     limparCarrinho,
     modo,
     usuario,
@@ -54,6 +56,8 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
   const [buscandoHospede, setBuscandoHospede] = useState(false);
   const [mostrarModalPin, setMostrarModalPin] = useState(false);
   const [pinGerente, setPinGerente] = useState('');
+  const [mostrarSelecaoHospedes, setMostrarSelecaoHospedes] = useState(false);
+  const [hospedesEncontrados, setHospedesEncontrados] = useState<Hospede[]>([]);
   const { lerPulseira, isReading } = useNFC();
 
   const calcularTotal = () => {
@@ -123,14 +127,9 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
         setHospedeSelecionado(null);
         Alert.alert('Sucesso', `Hóspede encontrado: ${hospedes[0].nome}`);
       } else {
-        // Múltiplos resultados - por enquanto pega o primeiro
-        // TODO: Implementar seleção de múltiplos resultados
-        setHospedeManual(hospedes[0]);
-        setHospedeSelecionado(null);
-        Alert.alert(
-          'Atenção',
-          `Múltiplos hóspedes encontrados. Selecionado: ${hospedes[0].nome}`
-        );
+        // CORREÇÃO 5: Modal de seleção para múltiplos hóspedes
+        setHospedesEncontrados(hospedes);
+        setMostrarSelecaoHospedes(true);
       }
     } catch (error: unknown) {
       Alert.alert('Erro', getErrorMessage(error));
@@ -228,37 +227,138 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
     const processarPedido = async (managerPin?: string) => {
       setLoading(true);
       try {
+        // CORREÇÃO 1: Recarregar produtos antes de finalizar para garantir dados atualizados
+        let produtosAtualizados: Produto[] = [];
+        try {
+          produtosAtualizados = await listarProdutos(undefined, true);
+        } catch (errorProdutos: unknown) {
+          console.warn('Erro ao recarregar produtos, usando dados do carrinho:', errorProdutos);
+          // Se falhar, continua com dados do carrinho (backend validará)
+        }
+
+        // Atualizar estoque/preço dos produtos no carrinho com dados atualizados
+        const carrinhoAtualizado = carrinho.map((item) => {
+          const produtoAtualizado = produtosAtualizados.find((p) => p.id === item.produto.id);
+          if (produtoAtualizado) {
+            return {
+              ...item,
+              produto: produtoAtualizado, // Usa dados atualizados
+            };
+          }
+          return item; // Se não encontrar, mantém original
+        });
+
+        // CORREÇÃO 2: Revalidar estoque com dados atualizados
+        for (const item of carrinhoAtualizado) {
+          if (item.produto.estoque < item.quantidade) {
+            Alert.alert(
+              'Estoque Insuficiente',
+              `${item.produto.nome} está sem estoque disponível. Disponível: ${item.produto.estoque}, Solicitado: ${item.quantidade}`
+            );
+            setLoading(false);
+            return;
+          }
+        }
+
         // Determinar autenticação baseado no modo
         let hospedeId: number | undefined;
         let uidPulseira: string | undefined;
         let pinGarcom: string | undefined;
+        let hospedeAtual: Hospede | null = null;
 
         if (modo === 'KIOSK') {
           // Modo Kiosk: obrigatório ter hóspede selecionado via pulseira
           if (!hospedeSelecionado) {
             throw new Error('Hóspede não selecionado');
           }
-          hospedeId = hospedeSelecionado.id;
-          uidPulseira = hospedeSelecionado.uidPulseira;
+          
+          // CORREÇÃO 3: Revalidar hóspede antes de criar pedido
+          try {
+            const hospedeRevalidado = await buscarHospedePorPulseira(hospedeSelecionado.uidPulseira);
+            if (!hospedeRevalidado.ativo) {
+              Alert.alert('Erro', 'Hóspede não está mais ativo. Verifique com a recepção.');
+              setLoading(false);
+              return;
+            }
+            hospedeAtual = hospedeRevalidado;
+            setHospedeSelecionado(hospedeRevalidado); // Atualiza com dados frescos
+          } catch (errorHospede: unknown) {
+            Alert.alert('Erro', 'Não foi possível validar o hóspede. Tente novamente.');
+            setLoading(false);
+            return;
+          }
+          
+          hospedeId = hospedeAtual.id;
+          uidPulseira = hospedeAtual.uidPulseira;
         } else if (modo === 'GARCOM') {
           // Modo Garçom
           if (modoSelecao === 'PULSEIRA' && hospedeSelecionado) {
-            // Via pulseira: não precisa de PIN de gerente
-            hospedeId = hospedeSelecionado.id;
-            uidPulseira = hospedeSelecionado.uidPulseira;
+            // Via pulseira: revalidar hóspede
+            try {
+              const hospedeRevalidado = await buscarHospedePorPulseira(hospedeSelecionado.uidPulseira);
+              if (!hospedeRevalidado.ativo) {
+                Alert.alert('Erro', 'Hóspede não está mais ativo. Verifique com a recepção.');
+                setLoading(false);
+                return;
+              }
+              hospedeAtual = hospedeRevalidado;
+              setHospedeSelecionado(hospedeRevalidado);
+            } catch (errorHospede: unknown) {
+              Alert.alert('Erro', 'Não foi possível validar o hóspede. Tente novamente.');
+              setLoading(false);
+              return;
+            }
+            hospedeId = hospedeAtual.id;
+            uidPulseira = hospedeAtual.uidPulseira;
           } else if (modoSelecao === 'MANUAL' && hospedeManual) {
-            // Via manual: precisa de PIN de gerente
+            // Via manual: revalidar hóspede
+            try {
+              // Buscar hóspede novamente para validar
+              const hospedeRevalidado = await buscarHospedePorQuarto(hospedeManual.quarto || '');
+              if (!hospedeRevalidado.ativo || hospedeRevalidado.id !== hospedeManual.id) {
+                Alert.alert('Erro', 'Hóspede não está mais ativo ou foi alterado. Busque novamente.');
+                setHospedeManual(null);
+                setLoading(false);
+                return;
+              }
+              hospedeAtual = hospedeRevalidado;
+              setHospedeManual(hospedeRevalidado);
+            } catch (errorHospede: unknown) {
+              Alert.alert('Erro', 'Não foi possível validar o hóspede. Busque novamente.');
+              setHospedeManual(null);
+              setLoading(false);
+              return;
+            }
             if (!managerPin) {
               throw new Error('PIN de gerente obrigatório para pedidos manuais');
             }
-            hospedeId = hospedeManual.id;
+            hospedeId = hospedeAtual.id;
           }
           // O PIN do garçom sempre é enviado para autenticação
           pinGarcom = usuario?.pin;
         }
 
-        // Preparar items no formato esperado pelo backend
-        const items = carrinho.map((item) => ({
+        // CORREÇÃO 4: Revalidar limite de gasto com dados atualizados do hóspede
+        if (hospedeAtual) {
+          const total = calcularTotal();
+          const dividaAtual = hospedeAtual.dividaAtual;
+          const totalComDivida = total + dividaAtual;
+
+          if (hospedeAtual.tipo === 'DAY_USE' && hospedeAtual.limiteGasto) {
+            if (totalComDivida > hospedeAtual.limiteGasto) {
+              const disponivel = hospedeAtual.limiteGasto - dividaAtual;
+              Alert.alert(
+                'Limite de Gasto Excedido',
+                `Limite de gasto excedido! Disponível: R$ ${disponivel.toFixed(2)}, Total do pedido: R$ ${total.toFixed(2)}, Dívida atual: R$ ${dividaAtual.toFixed(2)}`
+              );
+              setLoading(false);
+              return;
+            }
+          }
+        }
+
+        // Preparar items no formato esperado pelo backend (usando dados atualizados)
+        const items = carrinhoAtualizado.map((item) => ({
           produtoId: item.produto.id,
           quantidade: item.quantidade,
         }));
@@ -272,24 +372,69 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
           usuarioId: usuario?.id, // Adicionar ID do garçom logado
         });
 
+        // Recarregar dados do hóspede para atualizar dívida em tempo real
+        if (hospedeAtual && hospedeAtual.uidPulseira) {
+          try {
+            const hospedeAtualizado = await buscarHospedePorPulseira(hospedeAtual.uidPulseira);
+            setHospedeSelecionado(hospedeAtualizado);
+          } catch (error: unknown) {
+            // Não bloquear o fluxo se falhar ao recarregar
+            console.warn('Erro ao recarregar dados do hóspede:', error);
+          }
+        } else if (hospedeAtual && modoSelecao === 'MANUAL') {
+          // Para modo manual, tentar recarregar pelo quarto
+          try {
+            if (hospedeAtual.quarto) {
+              const hospedeAtualizado = await buscarHospedePorQuarto(hospedeAtual.quarto);
+              setHospedeManual(hospedeAtualizado);
+            }
+          } catch (error: unknown) {
+            console.warn('Erro ao recarregar dados do hóspede (manual):', error);
+          }
+        }
+
         // Limpar carrinho apenas em caso de sucesso
         limparCarrinho();
         setHospedeManual(null);
         setQuarto('');
         setNome('');
 
-        Alert.alert(
-          'Sucesso',
-          'Pedidos enviados para a cozinha!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.goBack();
+        // Comportamento diferente para KIOSK vs GARCOM
+        if (modo === 'KIOSK') {
+          // Modo KIOSK: Logout automático e voltar para tela inicial
+          Alert.alert(
+            'Sucesso',
+            'Pedido enviado com sucesso!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  // Limpar dados do hóspede
+                  setHospedeSelecionado(null);
+                  // Navegar para tela inicial do Kiosk
+                  navigation.reset({
+                    index: 0,
+                    routes: [{ name: 'KioskWelcome' }],
+                  });
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+        } else {
+          // Modo GARCOM: Manter fluxo atual (voltar para cardápio)
+          Alert.alert(
+            'Sucesso',
+            'Pedidos enviados para a cozinha!',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  navigation.goBack();
+                },
+              },
+            ]
+          );
+        }
       } catch (error: unknown) {
         const status = (error as any)?.status || (error as any)?.response?.status;
         const errorData = (error as any)?.response?.data;
@@ -363,20 +508,64 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
         throw new Error('Hóspede não selecionado');
       }
 
-      // Validar limite de gasto
-      const validacao = validarLimiteGasto();
-      if (!validacao.valido) {
-        Alert.alert('Atenção', validacao.mensagem || 'Não foi possível validar o limite de gasto');
+      // CORREÇÃO 1: Recarregar produtos antes de finalizar
+      let produtosAtualizados: Produto[] = [];
+      try {
+        produtosAtualizados = await listarProdutos(undefined, true);
+      } catch (errorProdutos: unknown) {
+        console.warn('Erro ao recarregar produtos:', errorProdutos);
+      }
+
+      // Atualizar carrinho com dados frescos
+      const carrinhoAtualizado = carrinho.map((item) => {
+        const produtoAtualizado = produtosAtualizados.find((p) => p.id === item.produto.id);
+        if (produtoAtualizado) {
+          return { ...item, produto: produtoAtualizado };
+        }
+        return item;
+      });
+
+      // CORREÇÃO 2: Revalidar estoque com dados atualizados
+      for (const item of carrinhoAtualizado) {
+        if (item.produto.estoque < item.quantidade) {
+          Alert.alert(
+            'Estoque Insuficiente',
+            `${item.produto.nome} está sem estoque disponível. Disponível: ${item.produto.estoque}, Solicitado: ${item.quantidade}`
+          );
+          setLoading(false);
+          return;
+        }
+      }
+
+      // CORREÇÃO 3: Revalidar hóspede antes de criar pedido
+      let hospedeRevalidado: Hospede;
+      try {
+        hospedeRevalidado = await buscarHospedePorQuarto(hospedeAtual.quarto || '');
+        if (!hospedeRevalidado.ativo || hospedeRevalidado.id !== hospedeAtual.id) {
+          Alert.alert('Erro', 'Hóspede não está mais ativo ou foi alterado. Busque novamente.');
+          setHospedeManual(null);
+          setLoading(false);
+          return;
+        }
+        setHospedeManual(hospedeRevalidado); // Atualiza com dados frescos
+      } catch (errorHospede: unknown) {
+        Alert.alert('Erro', 'Não foi possível validar o hóspede. Busque novamente.');
+        setHospedeManual(null);
         setLoading(false);
         return;
       }
 
-      // Validar estoque
-      for (const item of carrinho) {
-        if (item.produto.estoque < item.quantidade) {
+      // CORREÇÃO 4: Revalidar limite de gasto com dados atualizados
+      const total = calcularTotal();
+      const dividaAtual = hospedeRevalidado.dividaAtual;
+      const totalComDivida = total + dividaAtual;
+
+      if (hospedeRevalidado.tipo === 'DAY_USE' && hospedeRevalidado.limiteGasto) {
+        if (totalComDivida > hospedeRevalidado.limiteGasto) {
+          const disponivel = hospedeRevalidado.limiteGasto - dividaAtual;
           Alert.alert(
-            'Erro',
-            `Estoque insuficiente para ${item.produto.nome}. Disponível: ${item.produto.estoque}`
+            'Limite de Gasto Excedido',
+            `Limite de gasto excedido! Disponível: R$ ${disponivel.toFixed(2)}, Total do pedido: R$ ${total.toFixed(2)}, Dívida atual: R$ ${dividaAtual.toFixed(2)}`
           );
           setLoading(false);
           return;
@@ -385,19 +574,24 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
 
       const pinGarcom = usuario?.pin;
 
-      // Preparar items no formato esperado pelo backend
-      const items = carrinho.map((item) => ({
+      // Preparar items no formato esperado pelo backend (usando dados atualizados)
+      const items = carrinhoAtualizado.map((item) => ({
         produtoId: item.produto.id,
         quantidade: item.quantidade,
       }));
 
       // Criar todos os pedidos em uma única requisição
       await criarPedidos(items, {
-        hospedeId: hospedeAtual.id,
+        hospedeId: hospedeRevalidado.id,
         managerPin: pin,
         pinGarcom,
         usuarioId: usuario?.id, // Adicionar ID do garçom logado
       });
+
+      // Recarregar dados do hóspede para atualizar dívida em tempo real
+      // Nota: No modo manual, não temos uidPulseira, então não podemos recarregar
+      // Mas o garçom pode ver a dívida atualizada na próxima vez que buscar o hóspede
+      console.log('Modo manual: dívida será atualizada na próxima busca do hóspede');
 
       // Limpar carrinho apenas em caso de sucesso
       limparCarrinho();
@@ -560,7 +754,37 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
               styles.controleButton,
               !podeIncrementar && styles.controleButtonDisabled,
             ]}
-            onPress={() => incrementarItem(item.produto.id)}
+            onPress={async () => {
+              // CORREÇÃO 6: Validar estoque atualizado antes de incrementar
+              try {
+                const produtosAtualizados = await listarProdutos(undefined, true);
+                const produtoAtualizado = produtosAtualizados.find((p) => p.id === item.produto.id);
+                
+                if (!produtoAtualizado) {
+                  Alert.alert('Erro', 'Produto não encontrado. Recarregue o carrinho.');
+                  return;
+                }
+                
+                // Atualizar produto no carrinho com dados frescos antes de validar
+                atualizarProdutoNoCarrinho(item.produto.id, produtoAtualizado);
+                
+                // Validar estoque atualizado (agora com dados frescos)
+                if (item.quantidade >= produtoAtualizado.estoque) {
+                  Alert.alert(
+                    'Estoque Insuficiente',
+                    `Estoque disponível: ${produtoAtualizado.estoque} unidade(s). Você já tem ${item.quantidade} no carrinho.`
+                  );
+                  return;
+                }
+                
+                // Incrementar (agora com produto atualizado no carrinho)
+                incrementarItem(item.produto.id);
+              } catch (error: unknown) {
+                console.warn('Erro ao validar estoque antes de incrementar:', error);
+                // Se falhar, tenta incrementar mesmo (backend validará)
+                incrementarItem(item.produto.id);
+              }
+            }}
             disabled={!podeIncrementar}
             activeOpacity={0.7}
           >
@@ -823,6 +1047,66 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
                 style={styles.modalButton}
               />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Seleção de Múltiplos Hóspedes */}
+      <Modal
+        visible={mostrarSelecaoHospedes}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMostrarSelecaoHospedes(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              Múltiplos Hóspedes Encontrados
+            </Text>
+            <Text style={styles.modalMessage}>
+              Selecione o hóspede correto:
+            </Text>
+            <FlatList
+              data={hospedesEncontrados}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.hospedeOption}
+                  onPress={() => {
+                    setHospedeManual(item);
+                    setHospedeSelecionado(null);
+                    setMostrarSelecaoHospedes(false);
+                    setHospedesEncontrados([]);
+                    Alert.alert('Sucesso', `Hóspede selecionado: ${item.nome}`);
+                  }}
+                >
+                  <Text style={styles.hospedeOptionNome}>{item.nome}</Text>
+                  <View style={styles.hospedeOptionInfo}>
+                    {item.quarto && (
+                      <Text style={styles.hospedeOptionDetail}>Quarto: {item.quarto}</Text>
+                    )}
+                    <Text style={styles.hospedeOptionDetail}>
+                      Tipo: {item.tipo === 'HOSPEDE' ? 'Hóspede' : item.tipo === 'DAY_USE' ? 'Day Use' : 'VIP'}
+                    </Text>
+                    <Text style={styles.hospedeOptionDetail}>
+                      Dívida: R$ {item.dividaAtual.toFixed(2).replace('.', ',')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              style={styles.hospedesList}
+            />
+            <Button
+              title="Cancelar"
+              onPress={() => {
+                setMostrarSelecaoHospedes(false);
+                setHospedesEncontrados([]);
+              }}
+              variant="outline"
+              size="medium"
+              fullWidth
+              style={styles.modalButton}
+            />
           </View>
         </View>
       </Modal>
@@ -1102,5 +1386,30 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  hospedesList: {
+    maxHeight: 300,
+    marginBottom: spacing.lg,
+  },
+  hospedeOption: {
+    backgroundColor: colors.backgroundDark,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  hospedeOptionNome: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  hospedeOptionInfo: {
+    gap: spacing.xs,
+  },
+  hospedeOptionDetail: {
+    ...typography.bodySmall,
+    color: colors.textSecondary,
   },
 });

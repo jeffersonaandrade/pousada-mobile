@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
+import { Alert } from 'react-native';
 
 /**
- * Hook para leitura NFC real com fallback para mock
+ * Hook para leitura NFC real (PRODUÇÃO)
  * 
- * Prioriza hardware NFC real quando disponível.
- * Usa simulação apenas quando hardware não está disponível.
+ * Requer hardware NFC real. Não há fallback para mock.
+ * Se o hardware não estiver disponível, retorna erro explícito.
  */
 export function useNFC() {
   const [isReading, setIsReading] = useState(false);
@@ -34,15 +35,21 @@ export function useNFC() {
       if (supported) {
         // Inicializar NFC Manager se suportado
         await NfcManager.start();
+      } else {
+        setError('Hardware NFC não disponível neste dispositivo.');
       }
     } catch (err) {
-      console.warn('Erro ao verificar suporte NFC:', err);
+      console.error('Erro ao verificar suporte NFC:', err);
       setIsNfcSupported(false);
+      setError('Erro ao verificar suporte NFC no dispositivo.');
     }
   };
 
   /**
-   * Lê a pulseira NFC usando hardware real ou mock
+   * Lê a pulseira NFC usando hardware real
+   * 
+   * @throws {Error} Se hardware NFC não estiver disponível
+   * @returns {Promise<string | null>} UID da pulseira ou null se cancelado pelo usuário
    */
   const lerPulseira = async (): Promise<string | null> => {
     setIsReading(true);
@@ -53,10 +60,17 @@ export function useNFC() {
       await checkNfcSupport();
     }
 
-    // Se não suportado, usar mock
+    // Se não suportado, retornar erro explícito
     if (isNfcSupported === false) {
-      console.log('Hardware NFC não detectado. Usando Mock.');
-      return simularLeituraMock();
+      const errorMsg = 'Hardware NFC não disponível neste dispositivo. Este aplicativo requer um dispositivo com suporte a NFC.';
+      setError(errorMsg);
+      setIsReading(false);
+      Alert.alert(
+        'NFC Não Disponível',
+        errorMsg,
+        [{ text: 'OK' }]
+      );
+      return null;
     }
 
     // Tentar leitura real
@@ -74,8 +88,13 @@ export function useNFC() {
       }
 
       // Converter UID de array de bytes para string hexadecimal
-      const uid = Array.from(tag.id)
-        .map((byte: number) => byte.toString(16).padStart(2, '0'))
+      // tag.id pode ser string[] ou number[], então normalizamos para number[]
+      const idArray = Array.isArray(tag.id) ? tag.id : [];
+      const uid = idArray
+        .map((byte: number | string) => {
+          const numByte = typeof byte === 'string' ? parseInt(byte, 16) : byte;
+          return numByte.toString(16).padStart(2, '0');
+        })
         .join('')
         .toUpperCase();
 
@@ -85,16 +104,26 @@ export function useNFC() {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao ler pulseira';
       
       // Se for cancelamento do usuário, não tratar como erro
-      if (errorMessage.includes('cancelled') || errorMessage.includes('cancel')) {
+      if (
+        errorMessage.includes('cancelled') || 
+        errorMessage.includes('cancel') ||
+        errorMessage.includes('User cancelled')
+      ) {
         console.log('Leitura NFC cancelada pelo usuário');
         return null;
       }
 
-      console.warn('Erro ao ler NFC real, usando mock:', errorMessage);
+      // Erro real - não usar mock, retornar erro explícito
+      console.error('Erro ao ler NFC:', errorMessage);
       setError(errorMessage);
       
-      // Fallback para mock em caso de erro
-      return simularLeituraMock();
+      Alert.alert(
+        'Erro na Leitura NFC',
+        `Não foi possível ler a pulseira: ${errorMessage}\n\nVerifique se:\n- O NFC está ativado no dispositivo\n- A pulseira está próxima ao sensor\n- O dispositivo suporta NFC`,
+        [{ text: 'OK' }]
+      );
+      
+      return null;
     } finally {
       // SEMPRE cancelar a requisição de tecnologia para não travar o leitor
       try {
@@ -105,26 +134,6 @@ export function useNFC() {
         // Ignorar erros no cancelamento
       }
       setIsReading(false);
-    }
-  };
-
-  /**
-   * Simula a leitura de uma pulseira NFC (fallback)
-   */
-  const simularLeituraMock = async (): Promise<string | null> => {
-    try {
-      // Simula delay de leitura
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
-      // UID simulado (em produção, virá do chip NFC real)
-      const uidSimulado = `NFC${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-      
-      console.log('NFC Mock: UID simulado gerado:', uidSimulado);
-      return uidSimulado;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao simular leitura NFC';
-      setError(errorMessage);
-      return null;
     }
   };
 

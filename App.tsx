@@ -16,6 +16,7 @@ import RecepcaoScreen from './src/screens/RecepcaoScreen';
 import CardapioScreen from './src/screens/CardapioScreen';
 import CarrinhoScreen from './src/screens/CarrinhoScreen';
 import KioskWelcomeScreen from './src/screens/KioskWelcomeScreen';
+import KioskExtratoScreen from './src/screens/KioskExtratoScreen';
 import ProdutoDetalhesScreen from './src/screens/ProdutoDetalhesScreen';
 import PedidosScreen from './src/screens/PedidosScreen';
 import GovernanceScreen from './src/screens/GovernanceScreen';
@@ -30,6 +31,7 @@ export type RootStackParamList = {
   Cardapio: undefined;
   Carrinho: undefined;
   KioskWelcome: undefined;
+  KioskExtrato: undefined;
   ProdutoDetalhes: { produto: Produto };
   Pedidos: undefined;
   Governance: undefined;
@@ -160,6 +162,15 @@ export default function App() {
             options={{ 
               title: 'Bem-vindo',
               headerShown: false 
+            }}
+          />
+          <Stack.Screen
+            name="KioskExtrato"
+            component={KioskExtratoScreen}
+            options={{ 
+              title: 'Meu Extrato',
+              headerShown: false,
+              gestureEnabled: false,
             }}
           />
           <Stack.Screen

@@ -114,7 +114,7 @@ export default function CardapioScreen({ navigation }: CardapioScreenProps) {
     }
   };
 
-  const handleAdicionarAoCarrinho = (produto: Produto) => {
+  const handleAdicionarAoCarrinho = async (produto: Produto) => {
     // No modo KIOSK, é obrigatório ter hóspede selecionado (via pulseira)
     // No modo GARCOM, o garçom pode adicionar produtos sem pulseira (usará PIN do cliente)
     if (modo === 'KIOSK' && !hospedeSelecionado) {
@@ -122,26 +122,47 @@ export default function CardapioScreen({ navigation }: CardapioScreenProps) {
       return;
     }
     
-    if (produto.estoque === 0) {
-      Alert.alert('Erro', 'Produto sem estoque');
-      return;
-    }
+    // CORREÇÃO 8: Recarregar produto antes de validar estoque
+    try {
+      const produtosAtualizados = await listarProdutos(undefined, true);
+      const produtoAtualizado = produtosAtualizados.find((p) => p.id === produto.id);
+      
+      if (!produtoAtualizado) {
+        Alert.alert('Erro', 'Produto não encontrado ou foi removido.');
+        return;
+      }
+      
+      if (produtoAtualizado.estoque === 0) {
+        Alert.alert('Erro', 'Produto sem estoque');
+        return;
+      }
 
-    // Verificar se já existe no carrinho e se há estoque suficiente
-    const itemNoCarrinho = carrinho.find((item: { produto: Produto; quantidade: number }) => item.produto.id === produto.id);
-    const quantidadeNoCarrinho = itemNoCarrinho ? itemNoCarrinho.quantidade : 0;
-    
-    if (quantidadeNoCarrinho >= produto.estoque) {
-      Alert.alert(
-        'Estoque Insuficiente',
-        `Você já tem ${quantidadeNoCarrinho} unidade(s) deste produto no carrinho. Estoque disponível: ${produto.estoque}`
-      );
-      return;
+      // Verificar se já existe no carrinho e se há estoque suficiente
+      const itemNoCarrinho = carrinho.find((item: { produto: Produto; quantidade: number }) => item.produto.id === produto.id);
+      const quantidadeNoCarrinho = itemNoCarrinho ? itemNoCarrinho.quantidade : 0;
+      
+      if (quantidadeNoCarrinho >= produtoAtualizado.estoque) {
+        Alert.alert(
+          'Estoque Insuficiente',
+          `Você já tem ${quantidadeNoCarrinho} unidade(s) deste produto no carrinho. Estoque disponível: ${produtoAtualizado.estoque}`
+        );
+        return;
+      }
+      
+      // Adicionar produto atualizado ao carrinho
+      adicionarAoCarrinho(produtoAtualizado);
+      // Feedback visual mais sutil
+      Alert.alert('✓', `${produtoAtualizado.nome} adicionado ao carrinho!`);
+    } catch (error: unknown) {
+      console.warn('Erro ao validar estoque antes de adicionar:', error);
+      // Se falhar, tenta adicionar mesmo (backend validará)
+      if (produto.estoque === 0) {
+        Alert.alert('Erro', 'Produto sem estoque');
+        return;
+      }
+      adicionarAoCarrinho(produto);
+      Alert.alert('✓', `${produto.nome} adicionado ao carrinho!`);
     }
-    
-    adicionarAoCarrinho(produto);
-    // Feedback visual mais sutil
-    Alert.alert('✓', `${produto.nome} adicionado ao carrinho!`);
   };
 
   const renderProduto = ({ item }: { item: Produto }) => (
