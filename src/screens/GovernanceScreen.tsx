@@ -3,57 +3,25 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App';
-import { useAppStore } from '../store/appStore';
 import RoomGrid from '../components/RoomGrid';
 import ScreenWrapper from '../components/ScreenWrapper';
-import { colors, spacing, borderRadius, typography } from '../theme/colors';
+import SecureExitButton from '../components/SecureExitButton';
+import { colors, spacing, typography } from '../theme/colors';
 
 type GovernanceScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Governance'>;
 };
 
 export default function GovernanceScreen({ navigation }: GovernanceScreenProps) {
-  const { usuario, setUsuario, reset } = useAppStore();
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Sair',
-      'Deseja realmente sair?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Sair',
-          style: 'destructive',
-          onPress: () => {
-            reset();
-            setUsuario(null);
-            navigation.navigate('Login');
-          },
-        },
-      ]
-    );
-  };
-
   return (
-    <ScreenWrapper>
-      {/* Header com título e botão sair */}
+    <ScreenWrapper scrollEnabled={false}>
+      {/* Header com título e botão sair seguro */}
       <View style={styles.header}>
         <Text style={styles.title}>Governança / Limpeza</Text>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.logoutButtonText}>Sair</Text>
-        </TouchableOpacity>
+        <SecureExitButton modo="GARCOM" />
       </View>
 
       {/* RoomGrid em modo CLEANING */}
@@ -69,8 +37,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: colors.background,
-    padding: spacing.lg,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     elevation: 2,
@@ -82,21 +51,12 @@ const styles = StyleSheet.create({
   title: {
     ...typography.h2,
     fontWeight: 'bold',
-    color: colors.text,
-  },
-  logoutButton: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.error,
-    borderRadius: borderRadius.md,
-  },
-  logoutButtonText: {
-    ...typography.body,
-    fontWeight: '600',
     color: '#FFFFFF',
+    flex: 1,
   },
   content: {
     flex: 1,
+    padding: spacing.sm,
   },
 });
 

@@ -39,24 +39,32 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
+  const [initialRoute, setInitialRoute] = useState<'Config' | 'Login'>('Config');
 
   useEffect(() => {
-    // Carregar configuração do servidor e conectar
+    // Carregar configuração do servidor e verificar se há IP salvo
     const initializeApp = async () => {
       try {
         const config = await getServerConfig();
         
         if (config) {
-          // Configurar API e Socket com o IP salvo
+          // IP configurado: configurar API e Socket
           updateApiBaseURL(config.apiUrl);
           socketService.connect(config.socketUrl);
           console.log('✅ App inicializado com IP:', config.ip);
+          
+          // Se tiver IP, pode ir direto para Login (ou manter Config se preferir)
+          // Por enquanto, mantém Config como inicial para permitir mudança
+          setInitialRoute('Config');
         } else {
-          // Sem IP configurado, a tela de Config vai permitir configurar
-          console.log('ℹ️ IP do servidor não configurado. Use a tela de Config para definir.');
+          // Sem IP configurado: OBRIGATÓRIO ir para Config
+          console.log('ℹ️ IP do servidor não configurado. Redirecionando para Config.');
+          setInitialRoute('Config');
         }
       } catch (error) {
         console.error('❌ Erro ao inicializar app:', error);
+        // Em caso de erro, vai para Config para permitir configuração
+        setInitialRoute('Config');
       } finally {
         setIsReady(true);
       }
@@ -80,7 +88,7 @@ export default function App() {
       <StatusBar style="auto" />
       <NavigationContainer>
         <Stack.Navigator
-          initialRouteName="Config"
+          initialRouteName={initialRoute}
           screenOptions={{
             headerStyle: {
               backgroundColor: colors.primary,
@@ -173,7 +181,7 @@ export default function App() {
             component={GovernanceScreen}
             options={{ 
               title: 'Governança / Limpeza',
-              headerLeft: () => null,
+              headerShown: false,
               gestureEnabled: false,
             }}
           />

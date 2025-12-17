@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  ScrollView,
 } from 'react-native';
 import { useNFC } from '../hooks/useNFC';
 import {
@@ -24,6 +25,7 @@ import { aplicarMascaraMoeda, removerMascaraMoeda } from '../utils/validators';
 import { gerarResumoGastos } from '../utils/gerarResumoGastos';
 import RoomGrid from '../components/RoomGrid';
 import { Quarto } from '../types';
+import ScreenWrapper from '../components/ScreenWrapper';
 
 type ModoRecepcao = 'CHECKIN' | 'CHECKOUT';
 
@@ -698,7 +700,7 @@ export default function RecepcaoScreen() {
             )}
           </View>
         )}
-      </View>
+      </ScrollView>
 
       {/* Modal de Seleção de Quartos */}
       <RoomGrid
@@ -742,6 +744,9 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: colors.primary,
     fontWeight: 'bold',
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,

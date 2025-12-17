@@ -67,7 +67,26 @@ SOCKET_RECONNECTION_ATTEMPTS=5
   - **Linux/Mac:** Execute `ifconfig` ou `ip addr` no terminal
 - O arquivo `.env` não é versionado (está no `.gitignore`) por segurança
 
-### Passo 3: Iniciar o Aplicativo
+### Passo 3: Verificar Código (Recomendado)
+
+Antes de executar o app, é recomendado verificar erros de TypeScript:
+
+```bash
+npm run type-check
+```
+
+Este comando verifica erros de tipo e sintaxe **sem compilar o código**, similar ao que ferramentas de build fazem em projetos web. Ele detecta:
+- Erros de sintaxe JSX (tags não fechadas, etc.)
+- Erros de tipo TypeScript
+- Imports faltando
+- Propriedades inexistentes
+
+**Scripts disponíveis:**
+- `npm run type-check` - Verifica tipos uma vez
+- `npm run type-check:watch` - Verifica tipos em modo watch (re-executa ao salvar arquivos)
+- `npm run build:check` - Alias para `type-check`
+
+### Passo 4: Iniciar o Aplicativo
 
 Execute o comando:
 

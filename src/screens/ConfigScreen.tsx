@@ -15,6 +15,7 @@ import { ModoApp } from '../types';
 import { colors, spacing, borderRadius, typography } from '../theme/colors';
 import { getServerIP, saveServerIP, buildServerConfig } from '../services/config';
 import { updateApiBaseURL } from '../services/api';
+import api from '../services/api';
 import { socketService } from '../services/socket';
 import ScreenWrapper from '../components/ScreenWrapper';
 
@@ -68,34 +69,59 @@ export default function ConfigScreen({ navigation }: ConfigScreenProps) {
     setIsTestingConnection(true);
 
     try {
-      // Salvar IP
+      // Salvar IP no AsyncStorage (chave 'API_IP')
       await saveServerIP(ip);
       
-      // Configurar API e Socket
+      // Configurar Socket
       const config = buildServerConfig(ip);
-      updateApiBaseURL(config.apiUrl);
-      
-      // Tentar conectar ao Socket para testar
       socketService.disconnect(); // Desconectar anterior se existir
-      const socket = socketService.connect(config.socketUrl);
+      socketService.connect(config.socketUrl);
       
-      // Aguardar um pouco para ver se conecta
-      setTimeout(() => {
+      // Testar conexão com a API (endpoint simples)
+      try {
+        // Tentar um endpoint que sempre existe para testar conexão
+        // Usa /produtos com limit=1 para ser rápido
+        await api.get('/produtos', { params: { limit: 1 } });
+        
         setIsTestingConnection(false);
-        if (socket.connected) {
-          Alert.alert('Sucesso', 'Servidor configurado e conectado com sucesso!');
-        } else {
+        Alert.alert(
+          'Sucesso',
+          'Servidor configurado e conectado com sucesso!',
+          [{ text: 'OK' }]
+        );
+      } catch (apiError: any) {
+        // Se a API retornar erro mas conseguir fazer requisição HTTP, considera sucesso
+        // (pode ser 404 ou 500, mas significa que o servidor respondeu)
+        if (apiError.response) {
+          // Servidor respondeu (mesmo que com erro)
+          setIsTestingConnection(false);
           Alert.alert(
-            'Aviso',
-            'IP salvo, mas não foi possível conectar agora. Verifique se o servidor está rodando.',
+            'Sucesso',
+            'IP salvo e servidor acessível!',
             [{ text: 'OK' }]
           );
+        } else if (apiError.request) {
+          // Requisição foi feita mas não houve resposta (timeout ou rede)
+          setIsTestingConnection(false);
+          Alert.alert(
+            'Aviso',
+            'IP salvo, mas não foi possível conectar ao servidor agora.\n\nVerifique se o servidor está rodando e acessível.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          // Erro de configuração (provavelmente IP não configurado)
+          throw apiError;
         }
-      }, 2000);
-    } catch (error) {
+      }
+    } catch (error: any) {
       setIsTestingConnection(false);
-      Alert.alert('Erro', 'Não foi possível salvar o IP. Tente novamente.');
-      console.error('Erro ao salvar IP:', error);
+      const errorMessage = error?.message || 'Não foi possível conectar ao servidor';
+      Alert.alert(
+        'Erro de Conexão',
+        `${errorMessage}\n\nVerifique se:\n- O IP está correto\n- O servidor está rodando\n- O dispositivo está na mesma rede`,
+        [{ text: 'OK' }]
+      );
+      console.error('Erro ao testar conexão:', error);
     }
   };
 

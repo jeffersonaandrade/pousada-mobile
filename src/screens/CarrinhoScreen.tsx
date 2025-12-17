@@ -607,9 +607,10 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
 
   return (
     <ScreenWrapper scrollEnabled={false}>
-      {/* Tabs de seleção (apenas modo GARCOM) */}
-      {modo === 'GARCOM' && (
-        <View style={styles.tabsContainer}>
+      <View style={styles.container}>
+        {/* Tabs de seleção (apenas modo GARCOM) */}
+        {modo === 'GARCOM' && (
+          <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[styles.tab, modoSelecao === 'PULSEIRA' && styles.tabActive]}
             onPress={() => {
@@ -737,6 +738,9 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
         renderItem={renderItem}
         keyExtractor={(item: { produto: Produto; quantidade: number }) => item.produto.id.toString()}
         contentContainerStyle={styles.lista}
+        style={styles.flatList}
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
       />
 
       {/* Resumo e botão de finalizar */}
@@ -772,6 +776,7 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
         >
           <Text style={styles.limparButtonText}>Limpar Carrinho</Text>
         </TouchableOpacity>
+      </View>
       </View>
 
       {/* Modal de PIN de Gerente */}
@@ -826,6 +831,9 @@ export default function CarrinhoScreen({ navigation }: CarrinhoScreenProps) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   emptyContainer: {
     flexGrow: 1,
     justifyContent: 'center',
@@ -834,6 +842,9 @@ const styles = StyleSheet.create({
   emptyActions: {
     padding: spacing.lg,
     paddingTop: 0,
+  },
+  flatList: {
+    flex: 1,
   },
   hospedeCard: {
     backgroundColor: colors.background,
@@ -869,6 +880,7 @@ const styles = StyleSheet.create({
   },
   lista: {
     padding: spacing.md,
+    paddingBottom: spacing.xl,
   },
   item: {
     flexDirection: 'row',

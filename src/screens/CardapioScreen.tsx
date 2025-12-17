@@ -349,34 +349,37 @@ export default function CardapioScreen({ navigation }: CardapioScreenProps) {
       )}
 
       {/* Lista de produtos */}
-      <FlatList
-        data={produtosFiltrados}
-        renderItem={renderProduto}
-        keyExtractor={(item: Produto) => item.id.toString()}
-        contentContainerStyle={styles.lista}
-        numColumns={2}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              {setorSelecionado !== 'TODOS' || categoriaSelecionada
-                ? 'Nenhum produto encontrado com os filtros selecionados'
-                : 'Nenhum produto encontrado nesta categoria'}
-            </Text>
-          </View>
-        }
-      />
+      <View style={styles.listaContainer}>
+        <FlatList
+          data={produtosFiltrados}
+          renderItem={renderProduto}
+          keyExtractor={(item: Produto) => item.id.toString()}
+          contentContainerStyle={styles.lista}
+          numColumns={2}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {setorSelecionado !== 'TODOS' || categoriaSelecionada
+                  ? 'Nenhum produto encontrado com os filtros selecionados'
+                  : 'Nenhum produto encontrado nesta categoria'}
+              </Text>
+            </View>
+          }
+        />
 
-      {/* Botão do carrinho */}
-      {carrinho.length > 0 && (
-        <TouchableOpacity
-          style={styles.carrinhoButton}
-          onPress={() => navigation.navigate('Carrinho')}
-        >
-          <Text style={styles.carrinhoButtonText}>
-            🛒 Carrinho ({carrinho.length})
-          </Text>
-        </TouchableOpacity>
-      )}
+        {/* Botão do carrinho */}
+        {carrinho.length > 0 && (
+          <TouchableOpacity
+            style={styles.carrinhoButton}
+            onPress={() => navigation.navigate('Carrinho')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.carrinhoButtonText}>
+              🛒 Carrinho ({carrinho.length})
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </ScreenWrapper>
   );
 }
@@ -425,8 +428,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary,
     marginTop: spacing.sm,
   },
+  listaContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   lista: {
     padding: spacing.md,
+    paddingBottom: spacing.xxl + spacing.lg, // Espaço para o botão do carrinho
   },
   produtoCard: {
     flex: 1,
@@ -510,22 +518,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: spacing.sm,
+    gap: spacing.xs,
+    flexWrap: 'wrap',
   },
   produtoPreco: {
     ...typography.h3,
     fontWeight: 'bold',
     color: colors.primary,
+    flexShrink: 1,
+    minWidth: 80,
   },
   addButton: {
     backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
     borderRadius: borderRadius.md,
+    minWidth: 80,
+    flexShrink: 0,
   },
   addButtonText: {
     ...typography.bodySmall,
     fontWeight: '600',
     color: '#FFFFFF',
+    fontSize: 12,
   },
   carrinhoButton: {
     position: 'absolute',
@@ -535,7 +550,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     borderRadius: borderRadius.full,
-    elevation: 5,
+    elevation: 10,
+    zIndex: 1000,
     shadowColor: colors.shadowDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

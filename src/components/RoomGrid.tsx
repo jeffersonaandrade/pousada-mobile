@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { buscarQuartos, atualizarStatusQuarto } from '../services/api';
 import { Quarto, StatusQuarto } from '../types';
@@ -35,6 +36,11 @@ export default function RoomGrid({
   const [quartos, setQuartos] = useState<Quarto[]>([]);
   const [loading, setLoading] = useState(false);
   const [atualizando, setAtualizando] = useState<number | null>(null);
+  
+  // Calcular número de colunas baseado na largura da tela
+  const screenWidth = Dimensions.get('window').width;
+  const isSmallScreen = screenWidth < 600;
+  const numColumns = isSmallScreen ? 3 : 4;
 
   // Buscar quartos ao abrir o modal
   useEffect(() => {
@@ -328,7 +334,7 @@ export default function RoomGrid({
           data={quartos}
           renderItem={renderQuarto}
           keyExtractor={(item) => item.id.toString()}
-          numColumns={4}
+          numColumns={numColumns}
           contentContainerStyle={styles.grid}
           refreshing={loading}
           onRefresh={carregarQuartos}
@@ -383,24 +389,29 @@ export default function RoomGrid({
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: spacing.sm,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: spacing.sm,
   },
   modalContent: {
     backgroundColor: colors.background,
     borderRadius: borderRadius.xl,
     width: '100%',
     maxWidth: 800,
-    maxHeight: '90%',
+    maxHeight: '95%',
     elevation: 10,
     shadowColor: colors.shadowDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -431,7 +442,8 @@ const styles = StyleSheet.create({
   legenda: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: spacing.lg,
+    flexWrap: 'wrap',
+    gap: spacing.md,
     padding: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
@@ -463,7 +475,8 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   grid: {
-    padding: spacing.md,
+    padding: spacing.sm,
+    paddingBottom: spacing.lg,
   },
   quartoCard: {
     flex: 1,
@@ -472,8 +485,8 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.sm,
-    minWidth: 80,
+    padding: spacing.xs,
+    minWidth: 70,
     maxWidth: 120,
     elevation: 2,
     shadowColor: colors.shadow,
@@ -500,6 +513,7 @@ const styles = StyleSheet.create({
     ...typography.h3,
     fontWeight: 'bold',
     marginBottom: spacing.xs,
+    fontSize: 16,
   },
   quartoTextLivre: {
     color: '#FFFFFF',

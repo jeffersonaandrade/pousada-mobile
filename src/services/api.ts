@@ -1,5 +1,6 @@
-import axios from 'axios';
-import { API_BASE_URL, API_TIMEOUT } from '../config/api';
+import axios, { AxiosRequestConfig } from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_TIMEOUT } from '../config/api';
 import {
   ApiResponse,
   Hospede,
@@ -12,8 +13,10 @@ import {
   StatusQuarto,
 } from '../types';
 
+const API_IP_KEY = 'API_IP';
+
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  // baseURL será definido dinamicamente no interceptor
   timeout: API_TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
@@ -21,12 +24,54 @@ const api = axios.create({
 });
 
 /**
- * Atualiza a baseURL da API dinamicamente
- * Usado quando o IP do servidor é configurado pelo usuário
+ * Interceptor de requisição: Lê IP do AsyncStorage antes de cada chamada
+ */
+api.interceptors.request.use(
+  async (config: AxiosRequestConfig) => {
+    try {
+      // Ler IP salvo no AsyncStorage
+      const ip = await AsyncStorage.getItem(API_IP_KEY);
+      
+      if (!ip || ip.trim() === '') {
+        // Se não houver IP configurado, a requisição falhará
+        // Isso força o usuário a configurar na tela inicial
+        throw new Error('IP do servidor não configurado. Configure na tela inicial.');
+      }
+
+      // Construir baseURL dinamicamente
+      const baseURL = `http://${ip.trim()}:3000/api`;
+      config.baseURL = baseURL;
+      
+      // Log apenas em desenvolvimento
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${baseURL}${config.url}`);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao configurar baseURL:', error);
+      // Rejeitar a requisição se não houver IP
+      return Promise.reject(error);
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+/**
+ * Atualiza a baseURL da API dinamicamente (mantido para compatibilidade)
+ * Extrai o IP da URL e salva no AsyncStorage
+ * @deprecated O interceptor já lê automaticamente do AsyncStorage. Use saveServerIP() diretamente.
  */
 export const updateApiBaseURL = (newBaseURL: string): void => {
-  api.defaults.baseURL = newBaseURL;
-  console.log('✅ API Base URL atualizada para:', newBaseURL);
+  // Extrair IP da URL para salvar no AsyncStorage
+  const match = newBaseURL.match(/http:\/\/([^:]+):/);
+  if (match && match[1]) {
+    AsyncStorage.setItem(API_IP_KEY, match[1]).catch(console.error);
+  }
+  // Não precisa mais definir defaults.baseURL, o interceptor faz isso
+  console.log('✅ IP salvo no AsyncStorage. O interceptor configurará a baseURL automaticamente.');
 };
 
 // Interceptor para tratamento de erros
@@ -359,3 +404,6 @@ export const atualizarStatusQuarto = async (
   }
   return response.data.data;
 };
+
+// Exportar instância do axios para uso direto quando necessário
+export default api;

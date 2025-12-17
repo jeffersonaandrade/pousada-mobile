@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SERVER_IP_KEY = '@pousada:server_ip';
+const SERVER_IP_KEY = 'API_IP'; // Chave padrão conforme especificação
+const SERVER_IP_KEY_LEGACY = '@pousada:server_ip'; // Chave antiga para migração
 const DEFAULT_IP = '192.168.0.88'; // IP padrão do .env (pode ser usado como fallback)
 
 export interface ServerConfig {
@@ -11,6 +12,7 @@ export interface ServerConfig {
 
 /**
  * Salva o IP do servidor no AsyncStorage
+ * Usa a chave 'API_IP' conforme especificação
  */
 export const saveServerIP = async (ip: string): Promise<void> => {
   try {
@@ -22,9 +24,9 @@ export const saveServerIP = async (ip: string): Promise<void> => {
       throw new Error('IP não pode estar vazio');
     }
 
-    // Salva no AsyncStorage
-    await AsyncStorage.setItem(SERVER_IP_KEY, cleanIP);
-    console.log('✅ IP do servidor salvo:', cleanIP);
+    // Salva no AsyncStorage com a chave 'API_IP'
+    await AsyncStorage.setItem('API_IP', cleanIP);
+    console.log('✅ IP do servidor salvo (API_IP):', cleanIP);
   } catch (error) {
     console.error('❌ Erro ao salvar IP:', error);
     throw error;
@@ -33,10 +35,25 @@ export const saveServerIP = async (ip: string): Promise<void> => {
 
 /**
  * Recupera o IP do servidor do AsyncStorage
+ * Usa a chave 'API_IP' conforme especificação
+ * Tenta migração da chave antiga se necessário
  */
 export const getServerIP = async (): Promise<string | null> => {
   try {
-    const ip = await AsyncStorage.getItem(SERVER_IP_KEY);
+    // Tenta chave padrão 'API_IP' primeiro
+    let ip = await AsyncStorage.getItem('API_IP');
+    
+    // Se não encontrar, tenta chave antiga (migração)
+    if (!ip) {
+      ip = await AsyncStorage.getItem(SERVER_IP_KEY_LEGACY);
+      // Se encontrar na chave antiga, migra para a nova
+      if (ip) {
+        await AsyncStorage.setItem('API_IP', ip);
+        await AsyncStorage.removeItem(SERVER_IP_KEY_LEGACY);
+        console.log('✅ IP migrado da chave antiga para API_IP');
+      }
+    }
+    
     return ip;
   } catch (error) {
     console.error('❌ Erro ao recuperar IP:', error);
@@ -49,7 +66,7 @@ export const getServerIP = async (): Promise<string | null> => {
  */
 export const clearServerIP = async (): Promise<void> => {
   try {
-    await AsyncStorage.removeItem(SERVER_IP_KEY);
+    await AsyncStorage.removeItem('API_IP');
     console.log('✅ IP do servidor removido');
   } catch (error) {
     console.error('❌ Erro ao remover IP:', error);
