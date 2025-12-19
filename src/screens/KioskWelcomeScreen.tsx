@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -23,13 +23,13 @@ type KioskWelcomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'KioskWelcome'>;
 };
 
-type KioskAction = 'ORDER' | 'STATEMENT';
+type KioskAction = 'ORDER' | 'STATEMENT' | null;
 
 export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenProps) {
   const { setHospedeSelecionado } = useAppStore();
-  const { lerPulseira, isReading } = useNFC();
+  const { lerPulseira, isReading, cancelarLeitura } = useNFC();
   const [mostrarModalNFC, setMostrarModalNFC] = useState(false);
-  const [acaoSelecionada, setAcaoSelecionada] = useState<KioskAction | null>(null);
+  const [acaoSelecionada, setAcaoSelecionada] = useState<KioskAction>(null);
   const [lendoPulseira, setLendoPulseira] = useState(false);
 
   // Detectar se é tela pequena para ajustar espaçamentos
@@ -40,42 +40,51 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
     setAcaoSelecionada(acao);
     setMostrarModalNFC(true);
   };
-
-  const handleLerPulseira = async () => {
-    if (!acaoSelecionada) return;
-
-    setLendoPulseira(true);
-    try {
-      const uid = await lerPulseira();
-      if (!uid) {
-        Alert.alert('Erro', 'Não foi possível ler a pulseira');
-        return;
+  useEffect(() => {
+    const handleLerPulseira = async () => {
+      if (acaoSelecionada === null) return;
+      setLendoPulseira(true);
+      try {
+        const uid = await lerPulseira();
+        if (uid === 'Cancel'){
+          return ;
+        }
+        if (!uid) {
+          Alert.alert('Erro', 'Não foi possível ler a pulseira');
+          return;
+        }
+  
+        // Buscar hóspede pela pulseira
+        const hospede = await buscarHospedePorPulseira(uid);
+        setHospedeSelecionado(hospede);
+  
+        // Fechar modal
+        setMostrarModalNFC(false);
+        setAcaoSelecionada(null);
+  
+        // Navegar conforme a ação selecionada
+        if (acaoSelecionada === 'ORDER') {
+          navigation.navigate('Cardapio');
+        } else if (acaoSelecionada === 'STATEMENT') {
+          navigation.navigate('KioskExtrato');
+        }
+      } catch (error: unknown) {
+        Alert.alert('Erro', getErrorMessage(error));
+      } finally {
+        setMostrarModalNFC(false);
+        setAcaoSelecionada(null);
+        setLendoPulseira(false);
       }
+    };
 
-      // Buscar hóspede pela pulseira
-      const hospede = await buscarHospedePorPulseira(uid);
-      setHospedeSelecionado(hospede);
-
-      // Fechar modal
-      setMostrarModalNFC(false);
-      setAcaoSelecionada(null);
-
-      // Navegar conforme a ação selecionada
-      if (acaoSelecionada === 'ORDER') {
-        navigation.navigate('Cardapio');
-      } else if (acaoSelecionada === 'STATEMENT') {
-        navigation.navigate('KioskExtrato');
-      }
-    } catch (error: unknown) {
-      Alert.alert('Erro', getErrorMessage(error));
-    } finally {
-      setLendoPulseira(false);
-    }
-  };
+    handleLerPulseira();
+  }, [acaoSelecionada]);
 
   const handleFecharModal = () => {
     setMostrarModalNFC(false);
     setAcaoSelecionada(null);
+    setLendoPulseira(false);
+    cancelarLeitura();
   };
 
   return (
@@ -155,13 +164,12 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
             <Text style={styles.modalMessage}>
               Aproxime sua pulseira NFC do dispositivo
             </Text>
-            {lendoPulseira || isReading ? (
-              <ActivityIndicator size="large" color={colors.primary} style={styles.modalLoading} />
-            ) : (
-              <View style={styles.modalIcon}>
-                <Text style={styles.modalIconText}>📱</Text>
-              </View>
-            )}
+              {lendoPulseira ? (
+                <ActivityIndicator size="small" color={colors.primary} style={styles.modalLoading} />
+              ): ''}
+            <View style={styles.modalIcon}>
+              <Text style={styles.modalIconText}>📱</Text>
+            </View>
             <View style={styles.modalButtons}>
               <Button
                 title="Cancelar"
@@ -169,7 +177,6 @@ export default function KioskWelcomeScreen({ navigation }: KioskWelcomeScreenPro
                 variant="outline"
                 size="medium"
                 style={styles.modalButton}
-                disabled={lendoPulseira || isReading}
               />
             </View>
           </View>

@@ -50,6 +50,9 @@ export default function RecepcaoScreen() {
 
   // Estados do Check-out
   const [hospedeCheckout, setHospedeCheckout] = useState<Hospede | null>(null);
+  const [hospedesQuarto, setHospedesQuarto] = useState<Hospede[]>([]); // adicionado, verificar o que falta para setHospedesQuarto
+  const [mostrarSelecaoHospede, setMostrarSelecaoHospede] = useState(false); // adicionado, verificar o que falta para setMostrarSelecaoHospede
+  const [quartoParaCheckout, setQuartoParaCheckout] = useState<Quarto | null>(null); // adicionado, verificar o que falta para setQuartoParaCheckout
   const [pedidosCheckout, setPedidosCheckout] = useState<Pedido[]>([]);
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [processandoPagamento, setProcessandoPagamento] = useState(false);
